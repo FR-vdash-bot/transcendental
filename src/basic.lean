@@ -184,6 +184,9 @@ by rw [← smul_one_smul R s p, eval, eval₂_smul, ring_hom.id_apply, smul_one_
 end polynomial
 
 open polynomial real
+open_locale nat
+
+namespace e_transcendental
 
 lemma lemma₁ (p : ℤ[X]) {x : ℝ} (hx : 0 < x) : ∃ (c ∈ set.Ioo 0 x),
   aeval x p.sum_ideriv - exp x * aeval 0 p.sum_ideriv = -(x * exp (x - c) * aeval c p) := by
@@ -232,8 +235,6 @@ lemma lemma₂ (ann : ℤ[X]) (hann : aeval (exp 1) ann = 0) (p : ℤ[X]) :
   congr, funext i, rw [smul_mul_assoc, ← smul_sub], apply congr_arg,
   specialize hb' i, rw [nat.cast_zero, nat.cast_add, nat.cast_one, hb',
                         nsmul_eq_mul, nat.cast_add, nat.cast_one, mul_assoc], }
-
-open_locale nat
 
 def lemma₃ (p : ℤ[X]) (k : ℕ) : ∃ p', p.iterated_deriv k = k! * p' :=
 by use ∑ (x : ℕ) in (p.iterated_deriv k).support, (x + k).choose k • C (p.coeff (x + k)) * X ^ x;
@@ -361,12 +362,12 @@ lemma hF (q : ℕ) (ann : ℤ[X]) (hann : aeval (exp 1) ann = 0) :
       -((i + 1) • (exp ((i + 1 : ℕ) - b i) * aeval (b i) (F ann.nat_degree q))) :=
 lemma₂ ann hann (F ann.nat_degree q)
 
-lemma hF_lhs (q : ℕ) (ann : ℤ[X]) (hann : aeval (exp 1) ann = 0) :
+lemma hF_lhs' (q : ℕ) (ann : ℤ[X]) (hann : aeval (exp 1) ann = 0) :
   ∃ n',
     ∑ i in range (ann.nat_degree + 1),
       ann.coeff i • aeval (i : ℝ) (F ann.nat_degree q).sum_ideriv =
     (q! * (ann.coeff 0 * ∏ i in range ann.nat_degree, (-(i + 1 : ℕ)) ^ (q + 1)) +
-    (q + 1)! * n' : ℤ) := by
+      (q + 1)! * n' : ℤ) := by
 { obtain ⟨uz, huz⟩ := lemma₇_zero ann.nat_degree q,
   let us := λ x, if hx : x < ann.nat_degree then
     classical.some (lemma₇_succ ann.nat_degree q x hx) else 0,
@@ -386,6 +387,37 @@ lemma hF_lhs (q : ℕ) (ann : ℤ[X]) (hann : aeval (exp 1) ann = 0) :
     convert_to _ = ↑(q + 1)! * ∑ i in range ann.nat_degree, ann.coeff (i + 1) * us i,
     rw [mul_sum, sum_congr], refl, intros x hx, rw [mem_range] at hx,
     rw [int.coe_nat_succ, hus x hx, ← mul_assoc, ← mul_assoc, mul_comm (ann.coeff (x + 1))], }, }
+
+lemma hF_lhs (q : ℕ) (prime_q : q.prime) (ann : ℤ[X]) (hann : aeval (exp 1) ann = 0)
+  (coeff0 : ann.coeff 0 ≠ 0) (hcq : (ann.coeff 0).nat_abs + 1 ≤ q) (hnq : ann.nat_degree + 1 ≤ q) :
+  ∃ (n' r : ℤ) (hr : 0 < r ∧ r < q),
+    ∑ i in range (ann.nat_degree + 1),
+      ann.coeff i • aeval (i : ℝ) (F ann.nat_degree (q - 1)).sum_ideriv =
+    ((q - 1)! * r + q! * n' : ℤ) := by
+{ obtain ⟨n'', h''⟩ := hF_lhs' (q - 1) ann hann,
+  have q_0 : q ≠ 0 := prime_q.ne_zero,
+  have q_pos : 0 < q := nat.pos_of_ne_zero q_0,
+  have int_q_0 : (q : ℤ) ≠ 0 := int.coe_nat_ne_zero.mpr q_0,
+  have int_q_pos : 0 < (q : ℤ) := int.coe_nat_pos.mpr q_pos,
+  have prime_int_q := nat.prime_iff_prime_int.mp prime_q,
+  rw [tsub_add_cancel_of_le (nat.one_le_of_lt q_pos)] at h'',
+  let n : ℤ := ann.coeff 0 * ∏ (i : ℕ) in range ann.nat_degree, (-(i + 1 : ℕ)) ^ q,
+  let n' := n / q + n'', let r := n % q, have h' := n.div_add_mod (q + 1),
+  use n', use r, refine ⟨⟨_, int.mod_lt_of_pos _ int_q_pos⟩, _⟩,
+  { simp only [r, n], apply lt_of_le_of_ne (int.mod_nonneg _ int_q_0),
+    symmetry, rw [ne.def, euclidean_domain.mod_eq_zero], intros q_dvd,
+    replace q_dvd := (int.prime.dvd_mul' prime_q q_dvd).resolve_left _, swap,
+    { rw [int.coe_nat_dvd_left], apply nat.not_dvd_of_pos_of_lt,
+      exacts [int.nat_abs_pos_of_ne_zero coeff0, nat.add_one_le_iff.mp hcq], },
+    rw [prime.dvd_finset_prod_iff prime_int_q] at q_dvd,
+    obtain ⟨a, ha, q_dvd⟩ := q_dvd, replace q_dvd := prime_int_q.dvd_of_dvd_pow q_dvd,
+    rw [int.coe_nat_dvd_left, int.nat_abs_neg, int.nat_abs_of_nat] at q_dvd,
+    revert q_dvd, apply nat.not_dvd_of_pos_of_lt (nat.zero_lt_succ _),
+    rw [mem_range, ← add_lt_add_iff_right 1] at ha, exact ha.trans_le hnq, },
+  simp_rw [h'', int.cast_inj, n', r, mul_add, ← add_assoc, add_left_inj,
+    ← nat.mul_factorial_pred q_pos, int.coe_nat_mul, mul_comm (q : ℤ), mul_assoc, ← mul_add],
+  refine (mul_right_inj' _).mpr _, rw [int.coe_nat_ne_zero], exact nat.factorial_ne_zero _,
+  rw [int.mod_add_div], }
 
 lemma abs_aeval_le (n : ℕ) (q : ℕ) (x : ℝ) (hx : 0 ≤ x ∧ x ≤ n) :
   |(aeval x (F n q))| ≤ (n ^ q * (n ^ (q + 1)) ^ n : ℕ) := by
@@ -490,8 +522,14 @@ lemma hF_rhs (ann : ℤ[X]) (hann : aeval (exp 1) ann = 0) (ann0 : ann ≠ 0) :
   rw [nat.succ_eq_add_one, tsub_add_cancel_of_le one_le_nppp, add_comm 1],
   exact le_mul_of_one_le_left (nat.zero_le _) (nat.one_le_of_lt (nat.factorial_pos _)), }
 
-theorem transcendental_e : transcendental ℤ (exp 1) := by
-{ rintro ⟨p', ⟨p0', hp'⟩⟩,
+end e_transcendental
+
+section
+open e_transcendental
+
+theorem e_transcendental : transcendental ℤ (exp 1) := by
+{ 
+  rintro ⟨p', ⟨p0', hp'⟩⟩,
   obtain ⟨p, p0, hp, p_ann⟩ : ∃ (p : ℤ[X]) (p0 : p ≠ 0) (hp : ¬ X ∣ p), aeval (exp 1) p = 0 := by
   { revert p0' hp', refine unique_factorization_monoid.induction_on_prime p' (absurd rfl) _ _,
     { intros p p_unit p0 hp, obtain ⟨r, unit_r, hr⟩ := is_unit_iff.mp p_unit,
@@ -516,35 +554,12 @@ theorem transcendental_e : transcendental ℤ (exp 1) := by
   have hQq : Q + 1 ≤ q                   := le_of_max_le_left hq,
   have hcq : (p.coeff 0).nat_abs + 1 ≤ q := le_of_max_le_left (le_of_max_le_right hq),
   have hnq : p.nat_degree + 1 ≤ q        := le_of_max_le_right (le_of_max_le_right hq),
-  have q0 : q ≠ 0 := λ h, nat.not_prime_zero (h ▸ prime_q),
-  have q_pos : 0 < q := nat.pos_of_ne_zero q0,
-  have prime_int_q := nat.prime_iff_prime_int.mp prime_q,
-  have int_q_pos : 0 < (q : ℤ) := int.coe_nat_pos.mpr q_pos,
-  obtain ⟨nl, hl⟩ := hF_lhs (q - 1) p p_ann,
-  rw [tsub_add_cancel_of_le (nat.one_le_of_lt q_pos)] at hl,
-  obtain ⟨nl', r, hr, hl'⟩ : ∃ (nl' r : ℤ) (hr : 0 < r ∧ r < q),
-    ↑(q - 1)! * (p.coeff 0 * ∏ (i : ℕ) in range p.nat_degree, (-(i + 1 : ℕ)) ^ q) + q! * nl =
-      (q - 1)! * r + q! * nl' := by
-  { let n : ℤ := p.coeff 0 * ∏ (i : ℕ) in range p.nat_degree, (-(i + 1 : ℕ)) ^ q,
-    let nl' := n / q + nl, let r := n % q, have h' := n.div_add_mod (q + 1),
-    use nl', use r, refine ⟨⟨_, int.mod_lt_of_pos _ int_q_pos⟩, _⟩,
-    { simp only [r, n], apply lt_of_le_of_ne (int.mod_nonneg _ (int.coe_nat_ne_zero.mpr q0)),
-      symmetry, rw [ne.def, euclidean_domain.mod_eq_zero], intros q_dvd,
-      replace q_dvd := (int.prime.dvd_mul' prime_q q_dvd).resolve_left _, swap,
-      { rw [int.coe_nat_dvd_left], apply nat.not_dvd_of_pos_of_lt,
-        exacts [int.nat_abs_pos_of_ne_zero coeff0, nat.add_one_le_iff.mp hcq], },
-      rw [prime.dvd_finset_prod_iff prime_int_q] at q_dvd,
-      obtain ⟨a, ha, q_dvd⟩ := q_dvd, replace q_dvd := prime_int_q.dvd_of_dvd_pow q_dvd,
-      rw [int.coe_nat_dvd_left, int.nat_abs_neg, int.nat_abs_of_nat] at q_dvd,
-      revert q_dvd, apply nat.not_dvd_of_pos_of_lt (nat.zero_lt_succ _),
-      rw [mem_range, ← add_lt_add_iff_right 1] at ha, exact ha.trans_le hnq, },
-    simp_rw [nl', r, mul_add, ← add_assoc, add_left_inj, ← nat.mul_factorial_pred q_pos,
-      int.coe_nat_mul, mul_comm (q : ℤ), mul_assoc, ← mul_add],
-    refine (mul_right_inj' _).mpr _, rw [int.coe_nat_ne_zero], exact nat.factorial_ne_zero _,
-    rw [int.mod_add_div], },
+  have q_0 : q ≠ 0 := prime_q.ne_zero,
+  have q_pos : 0 < q := nat.pos_of_ne_zero q_0,
+  obtain ⟨nl, r, hr, hl⟩ := hF_lhs q prime_q p p_ann coeff0 hcq hnq,
   obtain ⟨b, hb, h⟩ := hF (q - 1) p p_ann,
   specialize hQ (q - 1) (le_tsub_of_add_le_right hQq) b hb,
-  rw [hl, hl'] at h, rw [← h, ← int.cast_abs, ← int.cast_coe_nat, int.cast_lt] at hQ,
+  rw [hl] at h, rw [← h, ← int.cast_abs, ← int.cast_coe_nat, int.cast_lt] at hQ,
   simp_rw [← nat.mul_factorial_pred q_pos, mul_comm q, int.coe_nat_mul, mul_assoc, ← mul_add,
     abs_mul, int.coe_nat_abs] at hQ,
   conv_rhs at hQ { rw [← mul_one ((q - 1)! : ℤ)], },
@@ -552,8 +567,10 @@ theorem transcendental_e : transcendental ℤ (exp 1) := by
   rw [← int.zero_add 1, int.lt_add_one_iff] at hQ,
   replace hQ := le_antisymm hQ (abs_nonneg _),
   rw [abs_eq_zero] at hQ,
-  have hQ_mod : (r + ↑q * nl') % q = r :=
+  have hQ_mod : (r + ↑q * nl) % q = r :=
     by rw [int.add_mod, int.mul_mod, int.mod_self, zero_mul, int.zero_mod, add_zero, int.mod_mod,
       int.mod_eq_of_lt hr.1.le hr.2],
-  have hQ_mod_pos : 0 < (r + ↑q * nl') % ↑q := hQ_mod.symm ▸ hr.1,
+  have hQ_mod_pos : 0 < (r + ↑q * nl) % ↑q := hQ_mod.symm ▸ hr.1,
   exact (ne_of_lt hQ_mod_pos).symm (hQ.symm ▸ int.zero_mod _), }
+
+end
