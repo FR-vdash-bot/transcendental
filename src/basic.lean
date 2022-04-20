@@ -524,29 +524,31 @@ lemma hF_rhs (ann : ℤ[X]) (hann : aeval (exp 1) ann = 0) (ann0 : ann ≠ 0) :
 
 end e_transcendental
 
+lemma remove_X_factor {x : ℝ} (hx : x ≠ 0) (p' : ℤ[X]) (p0' : p' ≠ 0) (p_ann' : aeval x p' = 0) :
+  ∃ (p : ℤ[X]) (p0 : p ≠ 0) (hp : ¬ X ∣ p), aeval x p = 0 := by
+{ revert p0' p_ann', refine unique_factorization_monoid.induction_on_prime p' (absurd rfl) _ _,
+  { intros p p_unit p0 p_ann, obtain ⟨r, unit_r, hr⟩ := is_unit_iff.mp p_unit,
+    rw [← hr, aeval_C, algebra_map_int_eq, ring_hom.eq_int_cast, int.cast_eq_zero] at p_ann,
+    rw [int.is_unit_iff, p_ann, zero_eq_neg] at unit_r,
+    exact (unit_r.elim zero_ne_one one_ne_zero).elim, },
+  { intros a p a0 prime_p h pa0 pa_ann, obtain ⟨p0, a0⟩ := mul_ne_zero_iff.mp pa0,
+    rw [aeval_mul, mul_eq_zero] at pa_ann,
+    refine pa_ann.elim (λ p_ann, _) (λ a_ann, h a0 a_ann),
+    refine ⟨p, p0, λ hX, _, p_ann⟩,
+    obtain ⟨u, hu⟩ := (@prime_X ℤ _ _).associated_of_dvd prime_p hX,
+    obtain ⟨r, unit_r, hr⟩ := is_unit_iff.mp u.is_unit, rw [int.is_unit_iff] at unit_r,
+    rw [← hu, ← hr, aeval_mul, aeval_X, aeval_C,
+        algebra_map_int_eq, ring_hom.eq_int_cast] at p_ann,
+    exact unit_r.elim (λ h', hx (by rwa [h', int.cast_one, mul_one] at p_ann))
+      (λ h', hx
+        (by rwa [h', int.cast_neg, mul_neg, int.cast_one, mul_one, neg_eq_zero] at p_ann)), }, }
+
 section
 open e_transcendental
 
 theorem e_transcendental : transcendental ℤ (exp 1) := by
-{ 
-  rintro ⟨p', ⟨p0', hp'⟩⟩,
-  obtain ⟨p, p0, hp, p_ann⟩ : ∃ (p : ℤ[X]) (p0 : p ≠ 0) (hp : ¬ X ∣ p), aeval (exp 1) p = 0 := by
-  { revert p0' hp', refine unique_factorization_monoid.induction_on_prime p' (absurd rfl) _ _,
-    { intros p p_unit p0 hp, obtain ⟨r, unit_r, hr⟩ := is_unit_iff.mp p_unit,
-      rw [← hr, aeval_C, algebra_map_int_eq, ring_hom.eq_int_cast, int.cast_eq_zero] at hp,
-      rw [int.is_unit_iff, hp, zero_eq_neg] at unit_r,
-      exact (unit_r.elim zero_ne_one one_ne_zero).elim, },
-    { intros a p a0 prime_p h pa0 pa_ann, obtain ⟨p0, a0⟩ := mul_ne_zero_iff.mp pa0,
-      rw [aeval_mul, mul_eq_zero] at pa_ann,
-      refine pa_ann.elim (λ p_ann, _) (λ a_ann, h a0 a_ann),
-      refine ⟨p, p0, λ hX, _, p_ann⟩,
-      obtain ⟨u, hu⟩ := (@prime_X ℤ _ _).associated_of_dvd prime_p hX,
-      obtain ⟨r, unit_r, hr⟩ := is_unit_iff.mp u.is_unit, rw [int.is_unit_iff] at unit_r,
-      rw [← hu, ← hr, aeval_mul, aeval_X, aeval_C,
-          algebra_map_int_eq, ring_hom.eq_int_cast] at p_ann,
-      exact unit_r.elim (λ h', exp_ne_zero 1 (by rwa [h', int.cast_one, mul_one] at p_ann))
-        (λ h', exp_ne_zero 1
-          (by rwa [h', int.cast_neg, mul_neg, int.cast_one, mul_one, neg_eq_zero] at p_ann)), }, },
+{ rintro ⟨p', ⟨p0', p_ann'⟩⟩,
+  obtain ⟨p, p0, hp, p_ann⟩ := remove_X_factor (exp_ne_zero 1) p' p0' p_ann',
   have coeff0 : p.coeff 0 ≠ 0 := (not_iff_not_of_iff polynomial.X_dvd_iff).mp hp,
   obtain ⟨Q, hQ⟩ := hF_rhs p p_ann p0,
   obtain ⟨q, hq, prime_q⟩ :=
