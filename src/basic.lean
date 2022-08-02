@@ -8,7 +8,6 @@ import data.polynomial.basic
 import data.polynomial.taylor
 import data.polynomial.iterated_deriv
 import ring_theory.algebraic
-import measure_theory.measure.lebesgue
 import measure_theory.integral.set_integral
 
 noncomputable theory
@@ -86,7 +85,7 @@ lemma sum_ideriv_derivative (p : R[X]) :
 def iterated_deriv_linear_map (n : ℕ) : R[X] →ₗ[R] R[X] :=
 { to_fun := λ p, p.iterated_deriv n,
   map_add' := λ p q, iterated_deriv_add p q n,
-  map_smul' := λ a p, iterated_deriv_smul a p n }
+  map_smul' := λ a p, iterated_deriv_smul p n a }
 
 lemma iterated_deriv_linear_map_apply (p : R[X]) (n : ℕ) :
   iterated_deriv_linear_map n p = p.iterated_deriv n := rfl
@@ -112,62 +111,10 @@ lemma coeff_iterated_deriv_as_desc_factorial (m : ℕ) :
   (iterated_deriv f k).coeff m = (m + k).desc_factorial k • f.coeff (m + k) :=
 by rw [coeff_iterated_deriv_as_prod_range', ← nat.desc_factorial_eq_prod_range]
 
-@[simp] lemma derivative_smul' {M : Type*} [monoid M]
-  [distrib_mul_action M R] [is_scalar_tower M R R]
-  (m : M) (p : R[X]) : derivative (m • p) = m • derivative p :=
-derivative.map_smul_of_tower m p
-
-lemma iterated_deriv_mul' :
-  iterated_deriv (p * q) n =
-  ∑ k in range n.succ,
-    n.choose k • (iterated_deriv p (n - k) * iterated_deriv q k) :=
-begin
-  induction n with n IH,
-  { simp },
-
-  calc (p * q).iterated_deriv n.succ
-      = (∑ (k : ℕ) in range n.succ,
-          (n.choose k) • (p.iterated_deriv (n - k) * q.iterated_deriv k)).derivative :
-    by rw [iterated_deriv_succ, IH]
-  ... = ∑ (k : ℕ) in range n.succ,
-          (n.choose k) • (p.iterated_deriv (n - k + 1) * q.iterated_deriv k) +
-        ∑ (k : ℕ) in range n.succ,
-          (n.choose k) • (p.iterated_deriv (n - k) * q.iterated_deriv (k + 1)) :
-    by simp_rw [derivative_sum, derivative_smul', derivative_mul, iterated_deriv_succ, smul_add,
-      sum_add_distrib]
-  ... = (∑ (k : ℕ) in range n.succ,
-            (n.choose k.succ) • (p.iterated_deriv (n - k) * q.iterated_deriv (k + 1)) +
-          1 • (p.iterated_deriv n.succ * q.iterated_deriv 0)) +
-        ∑ (k : ℕ) in range n.succ,
-          (n.choose k) • (p.iterated_deriv (n - k) * q.iterated_deriv (k + 1)) : _
-  ... = ∑ (k : ℕ) in range n.succ,
-          (n.choose k) • (p.iterated_deriv (n - k) * q.iterated_deriv (k + 1)) +
-        ∑ (k : ℕ) in range n.succ,
-            (n.choose k.succ) • (p.iterated_deriv (n - k) * q.iterated_deriv (k + 1)) +
-        1 • (p.iterated_deriv n.succ * q.iterated_deriv 0) :
-    by rw [add_comm, add_assoc]
-  ... = ∑ (i : ℕ) in range n.succ,
-          ((n+1).choose (i+1)) • (p.iterated_deriv (n + 1 - (i+1)) * q.iterated_deriv (i+1)) +
-        1 • (p.iterated_deriv n.succ * q.iterated_deriv 0) :
-    by simp_rw [nat.choose_succ_succ, nat.succ_sub_succ, add_smul, sum_add_distrib]
-  ... = ∑ (k : ℕ) in range n.succ.succ,
-          (n.succ.choose k) • (p.iterated_deriv (n.succ - k) * q.iterated_deriv k) :
-    by rw [sum_range_succ' _ n.succ, nat.choose_zero_right, tsub_zero],
-
-  congr,
-  refine (sum_range_succ' _ _).trans (congr_arg2 (+) _ _),
-  { rw [sum_range_succ, nat.choose_succ_self, zero_smul, add_zero],
-    refine sum_congr rfl (λ k hk, _),
-    rw mem_range at hk,
-    congr,
-    rw [tsub_add_eq_add_tsub (nat.succ_le_of_lt hk), nat.succ_sub_succ] },
-  { rw [nat.choose_zero_right, tsub_zero] },
-end
-
 lemma iterated_deriv_X_pow :
   ∀ n : ℕ, iterated_deriv (X ^ k : R[X]) n = k.desc_factorial n • X ^ (k - n)
 | 0       := by rw [iterated_deriv_zero_right, nat.desc_factorial, one_smul, tsub_zero]
-| (n + 1) := by rw [iterated_deriv_succ, iterated_deriv_X_pow n, derivative_smul', derivative_X_pow,
+| (n + 1) := by rw [iterated_deriv_succ, iterated_deriv_X_pow n, derivative_smul, derivative_X_pow,
   nat.desc_factorial, ← nsmul_eq_mul, smul_smul, mul_comm, tsub_tsub]
 
 lemma iterated_deriv_taylor (p : R[X]) (r : R) :
@@ -176,17 +123,13 @@ lemma iterated_deriv_taylor (p : R[X]) (r : R) :
 | (n + 1) := by simp_rw [iterated_deriv_succ, iterated_deriv_taylor n, taylor_apply,
   derivative_comp, derivative_add, derivative_X, derivative_C, add_zero, one_mul]
 
-@[simp] lemma eval_smul' {S : Type*} [monoid S] [distrib_mul_action S R] [is_scalar_tower S R R]
-  (p : R[X]) (x : R) {s : S} :
-  (s • p).eval x = s • p.eval x :=
-by rw [← smul_one_smul R s p, eval, eval₂_smul, ring_hom.id_apply, smul_one_mul]
-
 end polynomial
 
-open polynomial real
+open polynomial
 open_locale nat
 
 namespace e_transcendental
+open real
 
 lemma lemma₁ (p : ℤ[X]) {x : ℝ} (hx : 0 < x) : ∃ (c ∈ set.Ioo 0 x),
   aeval x p.sum_ideriv - exp x * aeval 0 p.sum_ideriv = -(x * exp (x - c) * aeval c p) := by
@@ -196,7 +139,7 @@ lemma lemma₁ (p : ℤ[X]) {x : ℝ} (hx : 0 < x) : ∃ (c ∈ set.Ioo 0 x),
     replace h := (@mul_eq_mul_left_iff _ _ (exp x) _ _).mpr (or.inl h),
     rw [mul_sub, ← mul_assoc, ← mul_assoc, ← exp_add, add_neg_self, exp_zero, one_mul] at h,
     rw [← h, mul_comm, mul_assoc, ← mul_neg, mul_eq_mul_left_iff, neg_mul_eq_mul_neg], left,
-    rw [exp_sub, div_mul_eq_mul_div_comm, mul_eq_mul_left_iff], left,
+    rw [exp_sub, div_mul_eq_mul_div, mul_div_assoc, mul_eq_mul_left_iff], left,
     rw [deriv_mul, _root_.deriv_exp, deriv_neg, div_eq_mul_inv, ← exp_neg, mul_comm _ (exp _),
       mul_assoc, ← mul_add, mul_eq_mul_left_iff], left,
     simp_rw [aeval_def, ← eval_map, polynomial.deriv, neg_one_mul, ← eval_neg, ← eval_add,
@@ -218,14 +161,16 @@ lemma lemma₂ (ann : ℤ[X]) (hann : aeval (exp 1) ann = 0) (p : ℤ[X]) :
     ∑ i in range ann.nat_degree, ann.coeff (i + 1) •
       -((i + 1) • (exp ((i + 1 : ℕ) - b i) * aeval (b i) p)) := by
 { have lt_succ : ∀ (i : ℕ), (0 : ℝ) < i + 1,
-  { intros i, convert_to ↑0 < ↑(i + 1), rw [nat.cast_lt, nat.add_one], exact nat.zero_lt_succ _ },
+  { intros i, convert_to ((0 : ℕ) : ℝ) < (i + 1 : ℕ),
+    { rw [nat.cast_zero] },
+    { rw [nat.cast_add, nat.cast_one] },
+    rw [nat.cast_lt], exact nat.zero_lt_succ _ },
   have lem := λ i, lemma₁ p (lt_succ i),
-  let b := λ i, classical.some (lem i), use b,
-  have hb : ∀ i, b i ∈ set.Ioo 0 (i + 1 : ℝ) :=
-    λ i, classical.some (classical.some_spec (lem i)),
+  let b := λ i, (lem i).some, use b,
+  have hb : ∀ i, b i ∈ set.Ioo 0 (i + 1 : ℝ) := λ i, (lem i).some_spec.some,
   have hb' : ∀ (i : ℕ), aeval (i + 1 : ℝ) (sum_ideriv p) - exp (i + 1) * aeval 0 (sum_ideriv p) =
-                        -((i + 1) * exp ((i + 1 : ℕ) - b i) * aeval (b i) p) :=
-    λ i, classical.some_spec (classical.some_spec (lem i)),
+                        -((i + 1) * exp ((i + 1 : ℕ) - b i) * aeval (b i) p),
+  { intros i, convert (lem i).some_spec.some_spec, rw [nat.cast_add, nat.cast_one], },
   use λ i _, hb i,
   have hc0 : (ann.coeff 0 : ℝ) = -∑ i in range ann.nat_degree, ann.coeff (i + 1) • exp 1 ^ (i + 1),
   { rw [eq_neg_iff_add_eq_zero, add_comm], convert hann,
@@ -236,7 +181,7 @@ lemma lemma₂ (ann : ℤ[X]) (hann : aeval (exp 1) ann = 0) (p : ℤ[X]) :
   specialize hb' i, rw [nat.cast_zero, nat.cast_add, nat.cast_one, hb',
                         nsmul_eq_mul, nat.cast_add, nat.cast_one, mul_assoc], }
 
-def lemma₃ (p : ℤ[X]) (k : ℕ) : ∃ p', p.iterated_deriv k = k! * p' :=
+lemma lemma₃ (p : ℤ[X]) (k : ℕ) : ∃ p', p.iterated_deriv k = k! * p' :=
 by use ∑ (x : ℕ) in (p.iterated_deriv k).support, (x + k).choose k • C (p.coeff (x + k)) * X ^ x;
   conv_lhs { rw [(p.iterated_deriv k).as_sum_support_C_mul_X_pow], };
   rw [← nsmul_eq_mul, smul_sum]; congr'; funext i;
@@ -252,23 +197,23 @@ calc C ((p.iterated_deriv k).coeff i) * X ^ i
 ... = k! • ((i + k).choose k • C (p.coeff (i + k)) * X ^ i) :
       by rw [smul_mul_assoc]
 
-def lemma₄ (p : ℤ[X]) (q : ℕ) {p' : ℤ[X]} (hp : p = X ^ q * p') {k : ℕ} (hk : k < q) :
+lemma lemma₄ (p : ℤ[X]) (q : ℕ) {p' : ℤ[X]} (hp : p = X ^ q * p') {k : ℕ} (hk : k < q) :
   (p.iterated_deriv k).eval 0 = 0 := by
 { have h : ∀ x, (X : ℤ[X]) ^ (q - (k - x)) = X ^ 1 * X ^ (q - (k - x) - 1),
   { intros x, rw [← pow_add, add_tsub_cancel_of_le], rw [nat.lt_iff_add_one_le] at hk,
     exact (le_tsub_of_add_le_left hk).trans (tsub_le_tsub_left (tsub_le_self : _ ≤ k) _), },
-  simp_rw [hp, iterated_deriv_mul', iterated_deriv_X_pow, ← smul_mul_assoc, smul_smul, h,
-    nsmul_eq_mul', mul_assoc, ← mul_sum, eval_mul, pow_one, eval_X, zero_mul], }
+  simp_rw [hp, iterated_deriv_mul, iterated_deriv_X_pow, ← smul_mul_assoc, smul_smul, h,
+    ← mul_smul_comm, mul_assoc, ← mul_sum, eval_mul, pow_one, eval_X, zero_mul], }
 
-def lemma₄' (p : ℤ[X]) (q : ℕ) {k : ℕ} (hk : q ≤ k) :
+lemma lemma₄' (p : ℤ[X]) (q : ℕ) {k : ℕ} (hk : q ≤ k) :
   ∃ n', (p.iterated_deriv k).eval 0 = q! * n' := by
 { obtain ⟨p', hp'⟩ := lemma₃ p k,
   use ↑(k.desc_factorial (k - q)) * eval 0 p',
   rw [hp', eval_mul, ← C_eq_nat_cast, eval_C,
     ← nat.factorial_mul_desc_factorial (tsub_le_self : k - q ≤ k), tsub_tsub_cancel_of_le hk,
-    nat.cast_mul, mul_assoc], simp_rw [int.nat_cast_eq_coe_nat], }
+    nat.cast_mul, mul_assoc], }
 
-def lemma₅ (p : ℤ[X]) (q : ℕ) {p' : ℤ[X]} (hp : p = X ^ q * p') (k : ℕ) :
+lemma lemma₅ (p : ℤ[X]) (q : ℕ) {p' : ℤ[X]} (hp : p = X ^ q * p') (k : ℕ) :
   ∃ n', (p.iterated_deriv k).eval 0 = q! * n' := by
 { by_cases hk : k < q,
   { use 0, rw [mul_zero, lemma₄ p q hp hk], },
@@ -277,15 +222,15 @@ def lemma₅ (p : ℤ[X]) (q : ℕ) {p' : ℤ[X]} (hp : p = X ^ q * p') (k : ℕ
 def F (n : ℕ) (q : ℕ) : ℤ[X] :=
 X ^ q * ∏ i in range n, (X - C (i + 1 : ℤ)) ^ (q + 1)
 
-def lemma₆_zero₁ (n : ℕ) (q : ℕ) {k : ℕ} (hk : k < q) :
+lemma lemma₆_zero₁ (n : ℕ) (q : ℕ) {k : ℕ} (hk : k < q) :
   ((F n q).iterated_deriv k).eval 0 = 0 :=
 lemma₄ (F n q) q rfl hk
 
-def lemma₆_zero₂ (n : ℕ) (q : ℕ) {k : ℕ} (hk : q + 1 ≤ k) :
+lemma lemma₆_zero₂ (n : ℕ) (q : ℕ) {k : ℕ} (hk : q + 1 ≤ k) :
   ∃ n', ((F n q).iterated_deriv k).eval 0 = (q + 1)! * n' :=
 lemma₄' (F n q) (q + 1) hk
 
-def lemma₆_succ (n : ℕ) (q : ℕ) (k : ℕ) (x : ℕ) (hx : x < n) :
+lemma lemma₆_succ (n : ℕ) (q : ℕ) (k : ℕ) (x : ℕ) (hx : x < n) :
   ∃ n', ((F n q).iterated_deriv k).eval (x + 1) = (q + 1)! * n' := by
 { obtain h := lemma₅ (taylor (x + 1 : ℤ) (F n q)) (q + 1) _ k,
   rwa [iterated_deriv_taylor, taylor_eval, zero_add] at h, swap,
@@ -293,7 +238,7 @@ def lemma₆_succ (n : ℕ) (q : ℕ) (k : ℕ) (x : ℕ) (hx : x < n) :
   simp_rw [_root_.map_mul, map_pow, _root_.map_sub, taylor_alg_hom_apply, taylor_X, taylor_C],
   rw [add_sub_cancel, ← mul_assoc, mul_comm (_ ^ q), mul_assoc], }
 
-def lemma₇_zero (n : ℕ) (q : ℕ) :
+lemma lemma₇_zero (n : ℕ) (q : ℕ) :
   ∃ n', (F n q).sum_ideriv.eval 0 = q! * ∏ i in range n, (-(i + 1)) ^ (q + 1) + (q + 1)! * n' := by
 { let ub := max (q + 1) ((F n q).nat_degree + 1),
   let u := λ i, if h : q + 1 ≤ i then classical.some (lemma₆_zero₂ n q h) else 0,
@@ -325,20 +270,19 @@ def lemma₇_zero (n : ℕ) (q : ℕ) :
     rintros i h, rw [inf_eq_inter, mem_inter, mem_range, mem_Ico, nat.lt_add_one_iff] at h,
     exact h.1.not_lt h.2.1, },
   { congr' 2, { rw [← coe_eval_ring_hom, map_sum], },
-    { rw [F, iterated_deriv_mul', sum_range_succ', eval_add],
+    { rw [F, iterated_deriv_mul, sum_range_succ', eval_add],
       convert_to 0 + (q! : ℤ) * ∏ (i : ℕ) in range n, (-(i + 1 : ℤ)) ^ (q + 1) =
                  q! * ∏ (i : ℕ) in range n, (-(i + 1)) ^ (q + 1),
       { congr' 1,
         { rw [← coe_eval_ring_hom, map_sum], apply sum_eq_zero, intros x hx, rw [mem_range] at hx,
-          rw [coe_eval_ring_hom, eval_smul', iterated_deriv_X_pow, tsub_tsub_cancel_of_le, pow_add,
-              pow_one, eval_mul, eval_smul', eval_mul, eval_X,
+          rw [coe_eval_ring_hom, eval_smul, iterated_deriv_X_pow, tsub_tsub_cancel_of_le, pow_add,
+              pow_one, eval_mul, eval_smul, eval_mul, eval_X,
               mul_zero, smul_zero, zero_mul, smul_zero],
           rwa [nat.add_one_le_iff], },
         { simp_rw [nat.choose_zero_right, one_smul, tsub_zero, iterated_deriv_X_pow, tsub_self,
-            pow_zero, smul_one_mul, nat.desc_factorial_self, eval_smul',
+            pow_zero, smul_one_mul, nat.desc_factorial_self, eval_smul,
             iterated_deriv_zero_right, eval_prod, eval_pow, eval_sub, eval_X, eval_C, zero_sub],
-          simp only [nsmul_eq_mul, int.nat_cast_eq_coe_nat, mul_eq_mul_left_iff, prod_congr,
-            eq_self_iff_true], }, },
+          simp only [nsmul_eq_mul, mul_eq_mul_left_iff, prod_congr, eq_self_iff_true], }, },
         rw [zero_add], },
     { rw [← coe_eval_ring_hom, map_sum], }, },
   { congr' 1, congr' 1,
@@ -346,7 +290,7 @@ def lemma₇_zero (n : ℕ) (q : ℕ) :
     { rw [sum_congr], refl, intros x hx, rw [mem_Ico] at hx, exact hu x hx.1, }, },
   { rw [sum_eq_zero (λ _ _, rfl)], congr' 1, rw [zero_add], rw [mul_sum], }, }
 
-def lemma₇_succ (n : ℕ) (q : ℕ) (x : ℕ) (hx : x < n) :
+lemma lemma₇_succ (n : ℕ) (q : ℕ) (x : ℕ) (hx : x < n) :
   ∃ n', (F n q).sum_ideriv.eval (x + 1) = (q + 1)! * n' := by
 { let c := λ k, classical.some (lemma₆_succ n q k x hx),
   have hc : ∀ (k : ℕ), eval (↑x + 1) ((F n q).iterated_deriv k) = (q + 1)! * c k :=
@@ -381,7 +325,7 @@ lemma hF_lhs' (q : ℕ) (ann : ℤ[X]) (hann : aeval (exp 1) ann = 0) :
   { rw [int.cast_sum, sum_congr], refl, intros x hx,
     rw [int.cast_mul, zsmul_eq_mul, mul_eq_mul_left_iff], left,
     rw [aeval_def, eval₂_eq_eval_map],
-    simp only [int.nat_cast_eq_coe_nat, ring_hom.eq_int_cast, eval_nat_cast_map], },
+    simp only [ring_hom.eq_int_cast, eval_nat_cast_map], },
   { rw [int.cast_inj, sum_range_succ', int.coe_nat_zero, huz, add_comm, mul_add,
       add_assoc, mul_add], simp_rw [← mul_assoc, mul_comm (ann.coeff 0)], congr' 2,
     convert_to _ = ↑(q + 1)! * ∑ i in range ann.nat_degree, ann.coeff (i + 1) * us i,
@@ -403,7 +347,7 @@ lemma hF_lhs (q : ℕ) (prime_q : q.prime) (ann : ℤ[X]) (hann : aeval (exp 1) 
   rw [tsub_add_cancel_of_le (nat.one_le_of_lt q_pos)] at h'',
   let n : ℤ := ann.coeff 0 * ∏ (i : ℕ) in range ann.nat_degree, (-(i + 1 : ℕ)) ^ q,
   let n' := n / q + n'', let r := n % q, have h' := n.div_add_mod (q + 1),
-  use n', use r, refine ⟨⟨_, int.mod_lt_of_pos _ int_q_pos⟩, _⟩,
+  use [n', r], refine ⟨⟨_, int.mod_lt_of_pos _ int_q_pos⟩, _⟩,
   { simp only [r, n], apply lt_of_le_of_ne (int.mod_nonneg _ int_q_0),
     symmetry, rw [ne.def, euclidean_domain.mod_eq_zero], intros q_dvd,
     replace q_dvd := (int.prime.dvd_mul' prime_q q_dvd).resolve_left _, swap,
@@ -527,7 +471,7 @@ end e_transcendental
 lemma remove_X_factor {x : ℝ} (hx : x ≠ 0) (p' : ℤ[X]) (p0' : p' ≠ 0) (p_ann' : aeval x p' = 0) :
   ∃ (p : ℤ[X]) (p0 : p ≠ 0) (hp : ¬ X ∣ p), aeval x p = 0 := by
 { revert p0' p_ann', refine unique_factorization_monoid.induction_on_prime p' (absurd rfl) _ _,
-  { intros p p_unit p0 p_ann, obtain ⟨r, unit_r, hr⟩ := is_unit_iff.mp p_unit,
+  { intros p p_unit p0 p_ann, obtain ⟨r, unit_r, hr⟩ := polynomial.is_unit_iff.mp p_unit,
     rw [← hr, aeval_C, algebra_map_int_eq, ring_hom.eq_int_cast, int.cast_eq_zero] at p_ann,
     rw [int.is_unit_iff, p_ann, zero_eq_neg] at unit_r,
     exact (unit_r.elim zero_ne_one one_ne_zero).elim, },
@@ -536,7 +480,7 @@ lemma remove_X_factor {x : ℝ} (hx : x ≠ 0) (p' : ℤ[X]) (p0' : p' ≠ 0) (p
     refine pa_ann.elim (λ p_ann, _) (λ a_ann, h a0 a_ann),
     refine ⟨p, p0, λ hX, _, p_ann⟩,
     obtain ⟨u, hu⟩ := (@prime_X ℤ _ _).associated_of_dvd prime_p hX,
-    obtain ⟨r, unit_r, hr⟩ := is_unit_iff.mp u.is_unit, rw [int.is_unit_iff] at unit_r,
+    obtain ⟨r, unit_r, hr⟩ := polynomial.is_unit_iff.mp u.is_unit, rw [int.is_unit_iff] at unit_r,
     rw [← hu, ← hr, aeval_mul, aeval_X, aeval_C,
         algebra_map_int_eq, ring_hom.eq_int_cast] at p_ann,
     exact unit_r.elim (λ h', hx (by rwa [h', int.cast_one, mul_one] at p_ann))
@@ -544,7 +488,7 @@ lemma remove_X_factor {x : ℝ} (hx : x ≠ 0) (p' : ℤ[X]) (p0' : p' ≠ 0) (p
         (by rwa [h', int.cast_neg, mul_neg, int.cast_one, mul_one, neg_eq_zero] at p_ann)), }, }
 
 section
-open e_transcendental
+open real e_transcendental
 
 theorem e_transcendental : transcendental ℤ (exp 1) := by
 { rintro ⟨p', ⟨p0', p_ann'⟩⟩,
@@ -560,8 +504,14 @@ theorem e_transcendental : transcendental ℤ (exp 1) := by
   have q_pos : 0 < q := nat.pos_of_ne_zero q_0,
   obtain ⟨nl, r, hr, hl⟩ := hF_lhs q prime_q p p_ann coeff0 hcq hnq,
   obtain ⟨b, hb, h⟩ := hF (q - 1) p p_ann,
+  replace hb : ∀ (i : ℕ), i < p.nat_degree → b i ∈ set.Ioo 0 ((i + 1 : ℕ) : ℝ),
+  { intros i hi, convert hb i hi, rw [nat.cast_add, nat.cast_one], },
+  --, rw [← nat.cast_one, ← nat.cast_add]
   specialize hQ (q - 1) (le_tsub_of_add_le_right hQq) b hb,
-  rw [hl] at h, rw [← h, ← int.cast_abs, ← int.cast_coe_nat, int.cast_lt] at hQ,
+  rw [hl] at h, rw [← h] at hQ,
+  replace hQ : ((|(q - 1)! * r + q! * nl| : ℤ) : ℝ) < (((q - 1)! : ℤ) : ℝ),
+  { norm_cast at ⊢ hQ, exact hQ, },
+  rw [int.cast_lt] at hQ,
   simp_rw [← nat.mul_factorial_pred q_pos, mul_comm q, int.coe_nat_mul, mul_assoc, ← mul_add,
     abs_mul, int.coe_nat_abs] at hQ,
   conv_rhs at hQ { rw [← mul_one ((q - 1)! : ℤ)], },
