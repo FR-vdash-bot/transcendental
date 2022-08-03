@@ -44,44 +44,6 @@ end nat
   f (if P then a else b) = if P then f a else f b :=
 by split_ifs; refl
 
-section
-
-lemma no_zero_smul_divisors.of_algebra_map_injective'
-  {R A : Type*} [comm_semiring R] [semiring A] [algebra R A] [no_zero_divisors A]
-  (h : function.injective (algebra_map R A)) : no_zero_smul_divisors R A :=
-⟨λ c x hcx, (mul_eq_zero.mp ((algebra.smul_def c x).symm.trans hcx)).imp_left
-  (map_eq_zero_iff (algebra_map R A) h).mp⟩
-
-end
-
-section
-variables {R : Type*}
-
-section char_zero_domain
-
-section
-variables [ring R] [no_zero_divisors R] [char_zero R]
-
-@[priority 100] -- see note [lower instance priority]
-instance char_zero.no_zero_smul_divisors_int : no_zero_smul_divisors ℤ R :=
-no_zero_smul_divisors.of_algebra_map_injective $ (algebra_map ℤ R).injective_int
-
-end
-
-section
-
-variables [semiring R] [no_zero_divisors R] [char_zero R]
-
-@[priority 100] -- see note [lower instance priority]
-instance char_zero.no_zero_smul_divisors_nat : no_zero_smul_divisors ℕ R :=
-no_zero_smul_divisors.of_algebra_map_injective' $ (algebra_map ℕ R).injective_nat
-
-end
-
-end char_zero_domain
-
-end
-
 namespace polynomial
 
 section
@@ -111,10 +73,10 @@ end
 
 end
 
-variables {R : Type*} [semiring R]
+variables {R : Type*}
 
-section
-variable {S : Type*}
+section semiring
+variables {S : Type*} [semiring R]
 
 @[simp]
 theorem derivative_map' [semiring S] (p : R[X]) (f : R →+* S) :
@@ -134,8 +96,6 @@ begin
   induction k with k ih generalizing p,
   { simp, },
   { simp [ih], },
-end
-
 end
 
 lemma sum_ideriv_apply_of_lt' {p : R[X]} {n : ℕ} (hn : p.nat_degree < n) :
@@ -190,17 +150,17 @@ theorem sum_ideriv_map {S : Type*} [comm_semiring S] (p : R[X]) (f : R →+* S) 
   apply sum_congr rfl, intros x hx,
   rw [iterate_derivative_map' p f x], }
 
-lemma sum_ideriv_eq_self_add (p : R[X]) :
-  p.sum_ideriv = p + p.sum_ideriv.derivative := by
-{ rw [sum_ideriv_apply, derivative_sum, sum_range_succ', sum_range_succ, add_comm,
-    ← add_zero (finset.sum _ _)], simp_rw [← iterated_deriv_succ], congr',
-  rw [iterated_deriv_eq_zero_of_nat_degree_lt _ _ (nat.lt_succ_self _)], }
-
 lemma sum_ideriv_derivative (p : R[X]) :
   p.derivative.sum_ideriv = p.sum_ideriv.derivative := by
 { rw [sum_ideriv_apply_of_le ((nat_degree_derivative_le p).trans tsub_le_self),
     sum_ideriv_apply, derivative_sum],
   simp_rw [iterated_deriv, ← function.iterate_succ_apply, function.iterate_succ_apply'], }
+
+lemma sum_ideriv_eq_self_add (p : R[X]) :
+  p.sum_ideriv = p + p.derivative.sum_ideriv := by
+{ rw [sum_ideriv_derivative, sum_ideriv_apply, derivative_sum, sum_range_succ', sum_range_succ,
+    add_comm, ← add_zero (finset.sum _ _)], simp_rw [← iterated_deriv_succ], congr',
+  rw [iterated_deriv_eq_zero_of_nat_degree_lt _ _ (nat.lt_succ_self _)], }
 
 def iterated_deriv_linear_map (n : ℕ) : R[X] →ₗ[R] R[X] :=
 { to_fun := λ p, p.iterated_deriv n,
@@ -230,6 +190,33 @@ end
 lemma coeff_iterated_deriv_as_desc_factorial (m : ℕ) :
   (iterated_deriv f k).coeff m = (m + k).desc_factorial k • f.coeff (m + k) :=
 by rw [coeff_iterated_deriv_as_prod_range', ← nat.desc_factorial_eq_prod_range]
+
+end semiring
+
+section ring
+variables [ring R]
+
+lemma sum_ideriv_sub (p : R[X]) :
+  p.sum_ideriv - p.derivative.sum_ideriv = p :=
+by rw [sum_ideriv_eq_self_add, add_sub_cancel]
+
+def sum_ideriv_linear_equiv : R[X] ≃ₗ[R] R[X] :=
+{ to_fun := λ p, ∑ i in range (p.nat_degree + 1), p.iterated_deriv i,
+  inv_fun := λ p, p - p.derivative,
+  left_inv := λ p, by simp_rw [← sum_ideriv_apply, ← sum_ideriv_derivative, sum_ideriv_sub],
+  right_inv := λ p, by simp_rw [← sum_ideriv_apply, map_sub, sum_ideriv_sub],
+  .. sum_ideriv }
+
+lemma sum_ideriv_linear_equiv_apply (p : R[X]) :
+  p.sum_ideriv_linear_equiv = ∑ i in range (p.nat_degree + 1), p.iterated_deriv i := rfl
+
+lemma sum_ideriv_linear_equiv_symm_apply (p : R[X]) :
+  sum_ideriv_linear_equiv.symm p = p - p.derivative := rfl
+
+lemma sum_ideriv_linear_equiv_eq_sum_ideriv (p : R[X]) :
+  p.sum_ideriv_linear_equiv = p.sum_ideriv := rfl
+
+end ring
 
 end polynomial
 
@@ -424,7 +411,7 @@ lemma deriv_eq_f (p : ℂ[X]) (s : ℂ) :
   have h : exp (s.arg • I) * p.sum_ideriv.eval (x • exp (s.arg • I)) -
     p.sum_ideriv.derivative.eval (x • exp (s.arg • I)) * exp (s.arg • I) =
     p.eval (x • exp (s.arg • I)) * exp (s.arg • I) := by
-  { conv_lhs { congr, rw [sum_ideriv_eq_self_add], },
+  { conv_lhs { congr, rw [sum_ideriv_eq_self_add, sum_ideriv_derivative], },
     rw [mul_comm, eval_add, add_mul, add_sub_cancel], },
   rw [← mul_neg, neg_add', neg_mul, neg_neg, h, ← mul_assoc, mul_div_cancel],
   exact exp_ne_zero _,
@@ -459,7 +446,7 @@ lemma integral_f_eq (p : ℂ[X]) (s : ℂ) :
     convert_to continuous ((λ (y : ℂ), p.eval y) ∘ (λ (x : ℝ), x • exp (s.arg • I))),
     exact p.continuous_aeval.comp (continuous_id'.smul continuous_const), }, }
 
-def P (p : ℂ[X]) (s : ℂ) := exp s * p.sum_ideriv.eval (0 : ℂ) - p.sum_ideriv.eval s
+def P (p : ℂ[X]) (s : ℂ) := exp s * p.sum_ideriv.eval 0 - p.sum_ideriv.eval s
 
 lemma P_le' (p : ℕ → ℂ[X]) (s : ℂ)
   (h : ∃ c, ∀ (q : ℕ) (x ∈ set.Ioc 0 s.abs), ((p q).eval (x • exp (s.arg • I))).abs ≤ c ^ q) :
@@ -514,20 +501,6 @@ lemma sum_P_eq (hct : ∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.ma
 by simp_rw [P, multiset.sum_map_sub, smul_sub, sum_sub_distrib, multiset.sum_map_mul_right,
   ← smul_mul_assoc, ← sum_mul, hct, zero_mul, zero_sub]
 
-def F (q : ℕ) (p : ℤ[X]) : ℤ[X] :=
-p ^ (q - 1)
-
-def F_ℂ (q : ℕ) (p : ℤ[X]) : ℂ[X] :=
-(F q p).map (algebra_map ℤ ℂ)
-
-lemma F_eq (q : ℕ) (p : ℤ[X]) :
-  F_ℂ q p = C ((p.map (algebra_map ℤ ℂ)).leading_coeff ^ (q - 1)) *
-    ((p.map (algebra_map ℤ ℂ)).roots.map (λ (r : ℂ), (X - C r) ^ (q - 1))).prod := by
-{ rw [F_ℂ, F, polynomial.map_pow, multiset.prod_map_pow, C_pow, ← mul_pow], congr' 1,
-  have : (p.map (algebra_map ℤ ℂ)).roots.card = (p.map (algebra_map ℤ ℂ)).nat_degree :=
-    splits_iff_card_roots.mp (is_alg_closed.splits _),
-  rw [C_leading_coeff_mul_prod_multiset_X_sub_C this], }
-
 section
 open list
 
@@ -550,7 +523,31 @@ lemma multiset.prod_map_erase {ι α : Type*} [comm_monoid α]
   f a * ((m.erase a).map f).prod = (m.map f).prod :=
 by rw [← m.coe_to_list, multiset.coe_erase, multiset.coe_map, multiset.coe_map,
 multiset.coe_prod, multiset.coe_prod, list.prod_map_erase f ((m.mem_to_list a).2 h)]
+
 end
+
+def F (q : ℕ) (p : ℤ[X]) (p' : ℂ[X]) : ℂ[X] :=
+p.map (algebra_map ℤ ℂ) ^ (q - 1) * p'
+
+namespace polynomial
+
+def erase_root (p : ℤ[X]) (r : ℂ) : ℂ[X] :=
+(((p.map (algebra_map ℤ ℂ)).roots.erase r).map (λ x, X - C x)).prod
+
+lemma eval_erase_root_mem (p : ℤ[X]) (r : ℂ)
+  (x : ℂ) (hx : x ∈ (p.map (algebra_map ℤ ℂ)).roots.erase r) :
+  (p.erase_root r).eval x = 0 := by
+by rw [erase_root, ← multiset.prod_map_erase _ hx, mul_comm, eval_mul_X_sub_C]
+
+end polynomial
+
+lemma F_eq (q : ℕ) (p : ℤ[X]) (p' : ℂ[X]) :
+  F q p p' = C ((p.map (algebra_map ℤ ℂ)).leading_coeff ^ (q - 1)) *
+    ((p.map (algebra_map ℤ ℂ)).roots.map (λ x, (X - C x) ^ (q - 1))).prod * p' := by
+{ rw [F, multiset.prod_map_pow, C_pow, ← mul_pow],
+  have : (p.map (algebra_map ℤ ℂ)).roots.card = (p.map (algebra_map ℤ ℂ)).nat_degree :=
+    splits_iff_card_roots.mp (is_alg_closed.splits _),
+  rw [C_leading_coeff_mul_prod_multiset_X_sub_C this], }
 
 lemma eval_root_derivative (p : ℂ[X]) {r : ℂ} (hr : r ∈ p.roots) :
   p.derivative.eval r = p.leading_coeff * ((p.roots.erase r).map (λ x, r - x)).prod := by
@@ -608,22 +605,28 @@ begin
 end
 -/
 
-lemma F_sum_ideriv_eval (p : ℤ[X]) {r : ℂ} (hr : r ∈ (p.map (algebra_map ℤ ℂ)).roots)
+lemma F_sum_ideriv_eval (p : ℤ[X]) (p' : ℂ[X]) {r : ℂ} (hr : r ∈ (p.map (algebra_map ℤ ℂ)).roots)
   {q : ℕ} (hq : 0 < q) :
-  ∃ n', (F_ℂ q p).sum_ideriv.eval r =
-    (q - 1)! * (p.map (algebra_map ℤ ℂ)).derivative.eval r ^ (q - 1) + q! * n' := by
-{ rw [eval_root_derivative' _ hr, ← eval_pow],
+  ∃ n', (F q p p').sum_ideriv.eval r =
+    (q - 1)! * ((p.map (algebra_map ℤ ℂ)).derivative ^ (q - 1) * p').eval r + q! * n' := by
+{ rw [eval_mul, eval_pow, eval_root_derivative' _ hr, ← eval_pow, ← eval_mul],
   refine sum_ideriv_sl' _ _ hq _,
   rw [F_eq, ← multiset.prod_map_erase _ hr, mul_left_comm, mul_pow, multiset.prod_map_pow,
-    C_pow], }
+    C_pow, mul_assoc], }
 
 lemma sum_P_F_eq (q : ℕ)
-  (hct : ∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map exp).sum = 0) (p : ℤ[X]) :
-  ∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (P (F_ℂ q p))).sum =
-  -∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (λ r, (F_ℂ q p).sum_ideriv.eval r)).sum + 1 :=
+  (hct : ∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map exp).sum = 0)
+  {p : ℤ[X]} (hp : p ≠ 0) {r : ℂ} (hr : r ∈ (p.map (algebra_map ℤ ℂ)).roots) :
+  ∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (P (F q p (p.erase_root r)))).sum =
+  -∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (λ r, (F q p).sum_ideriv.eval r)).sum + 1 :=
 begin
-  simp_rw [sum_P_eq _ _ hct, ← coe_eval_ring_hom, ← map_multiset_sum],
+  have F0 : (F_ℂ q p).sum_ideriv ≠ 0,
+  { rw [← sum_ideriv_linear_equiv_eq_sum_ideriv, linear_equiv.map_ne_zero_iff, F_ℂ, F,
+      map_ne_zero_of_injective _ (algebra_map ℤ ℂ).injective_int], exact pow_ne_zero _ hp, },
+  simp_rw [sum_P_eq _ _ hct],
   
+ --   ← function.comp (resultant_right this) ((λ (x : ℂ), X - C x)),
+  --  ← map_multiset_sum],
 end
 
 

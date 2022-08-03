@@ -997,7 +997,7 @@ lemma resultant_mul_right [no_zero_divisors R] (p q₁ q₂ : R[X]) :
   exact resultant'_congr' rfl degree_mul, }
 
 @[simps apply]
-def resultant_left (R : Type*) [comm_ring R] [no_zero_divisors R]
+def resultant_left {R : Type*} [comm_ring R] [no_zero_divisors R]
   {q : R[X]} (q0 : q ≠ 0) : R[X] →*₀ R :=
 { to_fun    := λ p, resultant p q,
   map_zero' := resultant_zero_left q,
@@ -1005,7 +1005,7 @@ def resultant_left (R : Type*) [comm_ring R] [no_zero_divisors R]
   map_mul'  := λ p₁ p₂, resultant_mul_left p₁ p₂ q, }
 
 @[simps apply]
-def resultant_right (R : Type*) [comm_ring R] [no_zero_divisors R]
+def resultant_right {R : Type*} [comm_ring R] [no_zero_divisors R]
   {p : R[X]} (p0 : p ≠ 0) : R[X] →*₀ R :=
 { to_fun    := λ q, resultant p q,
   map_zero' := resultant_zero_right p,
