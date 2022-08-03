@@ -14,7 +14,6 @@ import analysis.complex.basic
 import analysis.special_functions.polynomials
 import field_theory.polynomial_galois_group
 import algebra.monoid_algebra.to_direct_sum
-import resultant
 
 namespace euclidean_domain
 variables {R : Type*} [euclidean_domain R]
@@ -134,9 +133,6 @@ lemma sum_ideriv_apply_of_le {p : R[X]} {n : ℕ} (hn : p.nat_degree ≤ n) :
   p.sum_ideriv = ∑ i in range (n + 1), p.iterated_deriv i :=
 sum_ideriv_apply_of_le' hn
 
-lemma sum_ideriv_zero : (0 : R[X]).sum_ideriv = 0 :=
-by rw [sum_ideriv_apply, nat_degree_zero, zero_add, sum_range_one, iterated_deriv_zero_right]
-
 lemma sum_ideriv_C (a : R) : (C a).sum_ideriv = C a :=
 by rw [sum_ideriv_apply, nat_degree_C, zero_add, sum_range_one, iterated_deriv_zero_right]
 
@@ -223,128 +219,137 @@ end polynomial
 open polynomial
 open_locale nat
 
-variables {R : Type*} [comm_ring R] [is_domain R]
+variables {R A : Type*} [comm_ring R] [is_domain R]
+  [comm_ring A] [is_domain A] [algebra R A]
 
 @[simp] lemma derivative_X_sub_C_pow (r : R) :
-  ∀ (n : ℕ), derivative ((X - C r) ^ n : R[X]) = (n : R[X]) * (X - C r) ^ (n - 1)
-| 0       := by rw [pow_zero, nat.cast_zero, derivative_one, zero_mul]
-| 1       := by rw [pow_one, nat.cast_one, derivative_sub, derivative_X, derivative_C, tsub_self,
-  pow_zero, sub_zero, mul_one]
-| (n + 1 + 1) := by rw [pow_succ, derivative_mul, derivative_X_sub_C_pow, mul_comm (_ - _),
-  mul_assoc, ← pow_succ', add_tsub_cancel_right, add_tsub_cancel_right, ← add_mul, derivative_sub,
-  derivative_X, derivative_C, sub_zero, nat.cast_add (_ + _), add_comm ↑_, nat.cast_one]
+  ∀ (n : ℕ), derivative ((X - C r) ^ n : R[X]) = n • (X - C r) ^ (n - 1)
+| 0       := by rw [pow_zero, nsmul_eq_mul, nat.cast_zero, derivative_one, zero_mul]
+| 1       := by rw [pow_one, nsmul_eq_mul, nat.cast_one, derivative_sub, derivative_X,
+  derivative_C, tsub_self, pow_zero, sub_zero, mul_one]
+| (n + 1 + 1) := by rw [pow_succ, derivative_mul, derivative_X_sub_C_pow, nsmul_eq_mul,
+  nsmul_eq_mul, mul_comm (_ - _), mul_assoc, ← pow_succ', add_tsub_cancel_right,
+  add_tsub_cancel_right, ← add_mul, derivative_sub, derivative_X, derivative_C, sub_zero,
+  nat.cast_add (_ + _), add_comm ↑_, nat.cast_one]
 
 lemma iterated_deriv_X_sub_C_pow (r : R) (k : ℕ) :
   ∀ (n : ℕ), iterated_deriv ((X - C r) ^ k : R[X]) n = k.desc_factorial n • (X - C r) ^ (k - n)
 | 0       := by rw [iterated_deriv_zero_right, nat.desc_factorial, one_smul, tsub_zero]
 | (n + 1) := by rw [iterated_deriv_succ, iterated_deriv_X_sub_C_pow n, derivative_smul,
-  derivative_X_sub_C_pow, nat.desc_factorial, ← nsmul_eq_mul, smul_smul, mul_comm, tsub_tsub]
+  derivative_X_sub_C_pow, nat.desc_factorial, smul_smul, mul_comm, tsub_tsub]
 
-lemma iterated_deriv_dvd_factorial (p : R[X]) (k : ℕ) :
-  ∃ (p' : R[X]), p.iterated_deriv k = k! * p' :=
-by use ∑ (x : ℕ) in (p.iterated_deriv k).support, (x + k).choose k • C (p.coeff (x + k)) * X ^ x;
-  conv_lhs { rw [(p.iterated_deriv k).as_sum_support_C_mul_X_pow], };
-  rw [← nsmul_eq_mul, smul_sum]; congr'; funext i;
-calc C ((p.iterated_deriv k).coeff i) * X ^ i
-    = C ((i + k).desc_factorial k • p.coeff (i + k)) * X ^ i :
-      by rw [coeff_iterated_deriv_as_desc_factorial]
-... = C ((k! * (i + k).choose k) • p.coeff (i + k)) * X ^ i :
-      by rw [nat.desc_factorial_eq_factorial_mul_choose]
-... = (k! * (i + k).choose k) • C (p.coeff (i + k)) * X ^ i :
-      by rw [smul_C]
-... = k! • (i + k).choose k • C (p.coeff (i + k)) * X ^ i :
-      by rw [mul_smul]
-... = k! • ((i + k).choose k • C (p.coeff (i + k)) * X ^ i) :
-      by rw [smul_mul_assoc]
+lemma iterated_deriv_eq_factorial_mul (p : R[X]) (k : ℕ) :
+  ∃ (gp : R[X]), p.iterated_deriv k = k! • gp :=
+begin
+  use ∑ (x : ℕ) in (p.iterated_deriv k).support, (x + k).choose k • C (p.coeff (x + k)) * X ^ x,
+  conv_lhs { rw [(p.iterated_deriv k).as_sum_support_C_mul_X_pow], },
+  rw [smul_sum], congr', funext i,
+  calc C ((p.iterated_deriv k).coeff i) * X ^ i
+      = C ((i + k).desc_factorial k • p.coeff (i + k)) * X ^ i :
+        by rw [coeff_iterated_deriv_as_desc_factorial]
+  ... = C ((k! * (i + k).choose k) • p.coeff (i + k)) * X ^ i :
+        by rw [nat.desc_factorial_eq_factorial_mul_choose]
+  ... = (k! * (i + k).choose k) • C (p.coeff (i + k)) * X ^ i :
+        by rw [smul_C]
+  ... = k! • (i + k).choose k • C (p.coeff (i + k)) * X ^ i :
+        by rw [mul_smul]
+  ... = k! • ((i + k).choose k • C (p.coeff (i + k)) * X ^ i) :
+        by rw [smul_mul_assoc],
+end
 
-def iterated_deriv_small (p : R[X]) (r : R) (q : ℕ)
-  {p' : R[X]} (hp : p = (X - C r) ^ q * p')
+def iterated_deriv_small (p : R[X]) (q : ℕ) (r : A)
+  {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ q * p')
   {k : ℕ} (hk : k < q) :
-  (p.iterated_deriv k).eval r = 0 := by
-{ have h : ∀ x, (X - C r : R[X]) ^ (q - (k - x)) = (X - C r) ^ 1 * (X - C r) ^ (q - (k - x) - 1),
+  aeval r (p.iterated_deriv k) = 0 := by
+{ have h : ∀ x, (X - C r) ^ (q - (k - x)) = (X - C r) ^ 1 * (X - C r) ^ (q - (k - x) - 1),
   { intros x, rw [← pow_add, add_tsub_cancel_of_le], rw [nat.lt_iff_add_one_le] at hk,
     exact (le_tsub_of_add_le_left hk).trans (tsub_le_tsub_left (tsub_le_self : _ ≤ k) _), },
+  rw [aeval_def, eval₂_eq_eval_map, iterated_deriv, ← iterate_derivative_map, ← iterated_deriv],
   simp_rw [hp, iterated_deriv_mul, iterated_deriv_X_sub_C_pow, ← smul_mul_assoc, smul_smul, h,
     ← mul_smul_comm, mul_assoc, ← mul_sum, eval_mul, pow_one, eval_sub, eval_X, eval_C, sub_self,
     zero_mul], }
 
-def iterated_deriv_of_eq (p : R[X]) (r : R) (q : ℕ)
-  {p' : R[X]} (hp : p = (X - C r) ^ q * p') :
-  (p.iterated_deriv q).eval r = q! * eval r p' := by
+def iterated_deriv_of_eq (p : R[X]) (q : ℕ) (r : A)
+  {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ q * p') :
+  aeval r (p.iterated_deriv q) = q! • p'.eval r := by
 { have h : ∀ x ≥ 1, x ≤ q →
-    (X - C r : R[X]) ^ (q - (q - x)) = (X - C r) ^ 1 * (X - C r) ^ (q - (q - x) - 1),
+    (X - C r) ^ (q - (q - x)) = (X - C r) ^ 1 * (X - C r) ^ (q - (q - x) - 1),
   { intros x h h', rw [← pow_add, add_tsub_cancel_of_le], rwa [tsub_tsub_cancel_of_le h'], },
+  rw [aeval_def, eval₂_eq_eval_map, iterated_deriv, ← iterate_derivative_map, ← iterated_deriv],
   simp_rw [hp, iterated_deriv_mul, iterated_deriv_X_sub_C_pow, ← smul_mul_assoc, smul_smul],
   rw [sum_range_succ', nat.choose_zero_right, one_mul, tsub_zero, nat.desc_factorial_self,
     tsub_self, pow_zero, smul_mul_assoc, one_mul, iterated_deriv_zero_right, eval_add, eval_smul],
   convert zero_add _, rw [← coe_eval_ring_hom, map_sum], apply sum_eq_zero, intros x hx,
   rw [coe_eval_ring_hom, h (x + 1) le_add_self (nat.add_one_le_iff.mpr (mem_range.mp hx)),
     pow_one, eval_mul, eval_smul, eval_mul, eval_sub, eval_X, eval_C, sub_self, zero_mul,
-    smul_zero, zero_mul], rw [nsmul_eq_mul], }
+    smul_zero, zero_mul], }
 
-section
-variables {A : Type*} [comm_ring A] [algebra R A]
+variable (A)
 
-lemma is_integral.aeval {x : A} (h : is_integral R x) (p : R[X]) :
-  is_integral R (aeval x p) := by
-{ rw [aeval_eq_sum_range],
-  apply is_integral.sum,
-  intros i hi,
-  apply is_integral_smul,
-  exact h.pow _, }
-
-end
-
-def iterated_deriv_large (p : R[X]) (r : R)
-  (q : ℕ) {k : ℕ} (hk : q ≤ k) :
-  ∃ n', (p.iterated_deriv k).eval r = q! * n' := by
-{ obtain ⟨p', hp'⟩ := iterated_deriv_dvd_factorial p k,
-  use (k.desc_factorial (k - q) : ℤ) • p'.eval r,
-  rw [hp', eval_mul, ← C_eq_nat_cast, eval_C,
+def iterated_deriv_large (p : R[X]) (q : ℕ)
+  {k : ℕ} (hk : q ≤ k) :
+  ∃ (gp : R[X]), ∀ (r : A), aeval r (p.iterated_deriv k) = q! • aeval r gp := by
+{ obtain ⟨p', hp'⟩ := iterated_deriv_eq_factorial_mul p k,
+  use (k.desc_factorial (k - q) : ℤ) • p',
+  intros r,
+  rw [hp', aeval_def, eval₂_eq_eval_map, nsmul_eq_mul, polynomial.map_mul,
+    polynomial.map_nat_cast],
+  rw [eval_mul, eval_nat_cast,
     ← nat.factorial_mul_desc_factorial (tsub_le_self : k - q ≤ k), tsub_tsub_cancel_of_le hk,
-    nat.cast_mul, zsmul_eq_mul, int.cast_coe_nat, mul_assoc], }
+    nat.cast_mul, mul_assoc],
+  rw [aeval_def, eval₂_eq_eval_map, zsmul_eq_mul, polynomial.map_mul,
+    map_int_cast, eval_mul, eval_int_cast, int.cast_coe_nat, nsmul_eq_mul], }
 
-lemma sum_ideriv_sl (p : R[X]) (r : R)
-  (q : ℕ) {p' : R[X]} (hp : p = (X - C r) ^ q * p') :
-  ∃ n', p.sum_ideriv.eval r = q! * n' := by
-{ have h : ∀ k, ∃ n', (p.iterated_deriv k).eval r = q! * n',
+lemma sum_ideriv_sl (p : R[X]) (q : ℕ) :
+  ∃ (gp : R[X]), ∀ (r : A) {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ q * p'),
+    aeval r p.sum_ideriv = q! • aeval r gp := by
+{ have h : ∀ k,
+    ∃ (gp : R[X]), ∀ (r : A) {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ q * p'),
+    aeval r (p.iterated_deriv k) = q! • aeval r gp,
   { intros k, cases lt_or_ge k q with hk hk,
-    { use 0, rw [mul_zero, iterated_deriv_small p r q hp hk], },
-    { exact iterated_deriv_large p r q hk, }, },
-  let c := λ k, classical.some (h k),
-  have hc : ∀ k, (p.iterated_deriv k).eval r = q! * c k := λ k, classical.some_spec (h k),
+    { use 0, intros r p' hp, rw [map_zero, smul_zero, iterated_deriv_small p q r hp hk], },
+    { obtain ⟨gp, h⟩ := iterated_deriv_large A p q hk, refine ⟨gp, λ r p' hp, h r⟩, }, },
+  let c := λ k, (h k).some,
+  have hc : ∀ k, ∀ (r : A) {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ q * p'),
+    aeval r (p.iterated_deriv k) = q! • aeval r (c k) := λ k, (h k).some_spec,
   use (range (p.nat_degree + 1)).sum c,
-  simp_rw [sum_ideriv_apply, ← coe_eval_ring_hom, map_sum, coe_eval_ring_hom, hc, ← mul_sum], }
+  intros r p' hp,
+  rw [sum_ideriv_apply, map_sum], simp_rw [hc _ r hp, map_sum, smul_sum], }
 
-lemma sum_ideriv_sl' (p : R[X]) (r : R)
-  {q : ℕ} (hq : 0 < q)
-  {p' : R[X]} (hp : p = (X - C r) ^ (q - 1) * p') :
-  ∃ n', p.sum_ideriv.eval r = (q - 1)! * p'.eval r + q! * n' := by
-{ cases eq_or_ne p 0 with p0 p0,
-  { use 0, rw [p0] at ⊢ hp,
+lemma sum_ideriv_sl' (p : R[X]) {q : ℕ} (hq : 0 < q) :
+  ∃ (gp : R[X]), ∀ (inj_amap : function.injective (algebra_map R A))
+    (r : A) {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ (q - 1) * p'),
+    aeval r p.sum_ideriv = (q - 1)! • p'.eval r + q! • aeval r gp := by
+{ rcases eq_or_ne p 0 with rfl | p0,
+  { use 0, intros inj_amap r p' hp,
+    rw [map_zero, map_zero, smul_zero, add_zero], rw [polynomial.map_zero] at hp,
     replace hp := (mul_eq_zero.mp hp.symm).resolve_left _,
-    rw [sum_ideriv_zero, hp, eval_zero, mul_zero, mul_zero, add_zero],
+    rw [hp, eval_zero, smul_zero],
     exact λ h, X_sub_C_ne_zero r (pow_eq_zero h), },
+  let c := λ k, if hk : q ≤ k then (iterated_deriv_large A p q hk).some else 0,
+  have hc : ∀ k (hk : q ≤ k) (r : A), aeval r (p.iterated_deriv k) = q! • aeval r (c k) := λ k hk,
+    by { simp_rw [c, dif_pos hk], exact (iterated_deriv_large A p q hk).some_spec, },
+  use ∑ (x : ℕ) in Ico q (p.nat_degree + 1), c x,
+  intros inj_amap r p' hp,
   have : range (p.nat_degree + 1) = range q ∪ Ico q (p.nat_degree + 1),
   { rw [range_eq_Ico, Ico_union_Ico_eq_Ico hq.le],
-    have h := congr_arg nat_degree hp.symm,
-    rw [nat_degree_mul, nat_degree_pow, nat_degree_X_sub_C, mul_one] at h,
-    replace h := le_iff_exists_add.mpr ⟨p'.nat_degree, h.symm⟩,
-    exact tsub_le_iff_right.mp h,
+    have h := nat_degree_map_le (algebra_map R A) p,
+    rw [congr_arg nat_degree hp, nat_degree_mul, nat_degree_pow, nat_degree_X_sub_C, mul_one,
+      ← nat.sub_add_comm (nat.one_le_of_lt hq), tsub_le_iff_right] at h,
+    exact le_of_add_le_left h,
     { exact pow_ne_zero _ (X_sub_C_ne_zero r), },
-    { intros p0', rw [p0', mul_zero] at hp, exact p0 hp, }, },
-  let c := λ k, if hk : q ≤ k then classical.some (iterated_deriv_large p r q hk) else 0,
-  have hc : ∀ k (hk : q ≤ k), (p.iterated_deriv k).eval r = q! * c k := λ k hk,
-    by { simp_rw [c, dif_pos hk], exact classical.some_spec (iterated_deriv_large p r q hk), },
-  use ∑ (x : ℕ) in Ico q (p.nat_degree + 1), c x, rw [← zero_add (↑(q - 1)! * p'.eval r)],
-  rw [sum_ideriv_apply, ← coe_eval_ring_hom, map_sum, coe_eval_ring_hom, this, sum_union,
+    { rintros rfl, rw [mul_zero, map_eq_zero_of_injective _ inj_amap] at hp, exact p0 hp, }, },
+  rw [← zero_add ((q - 1)! • p'.eval r)],
+  rw [sum_ideriv_apply, map_sum, map_sum, this, sum_union,
     (by rw [tsub_add_cancel_of_le (nat.one_le_of_lt hq)] : range q = range (q - 1 + 1)),
     sum_range_succ], congr' 1, congr' 1,
-  { exact sum_eq_zero (λ x hx, iterated_deriv_small p r _ hp (mem_range.mp hx)), },
+  { exact sum_eq_zero (λ x hx, iterated_deriv_small p _ r hp (mem_range.mp hx)), },
   { rw [← iterated_deriv_of_eq _ _ _ hp], },
-  { rw [mul_sum, sum_congr rfl], intros k hk, exact hc k (mem_Ico.mp hk).1, },
+  { rw [smul_sum, sum_congr rfl], intros k hk, exact hc k (mem_Ico.mp hk).1 r, },
   { rw [range_eq_Ico, disjoint_iff_inter_eq_empty, eq_empty_iff_forall_not_mem],
     intros x hx, rw [mem_inter, mem_Ico, mem_Ico] at hx, exact hx.1.2.not_le hx.2.1, }, }
+
+variable {A}
 
 lemma remove_X_factor {x : ℝ} (hx : x ≠ 0) (p' : ℤ[X]) (p0' : p' ≠ 0) (p_ann' : aeval x p' = 0) :
   ∃ (p : ℤ[X]) (p0 : p ≠ 0) (hp : ¬ X ∣ p), aeval x p = 0 := by
@@ -488,6 +493,33 @@ lemma P_le (p : ℕ → ℂ[X]) (s : ℂ)
   refine mul_le_mul _ le_max_one_pow h₃ (mul_nonneg hcq hcq'),
   refine mul_le_mul le_max_one_pow le_rfl hcq' hcq, }
 
+lemma exp_polynomial_approx (p : ℤ[X]) : ∃ c ≥ 0, ∀ (q : ℕ),
+  ∃ (n : ℤ) (hn : n % q ≠ 0) (gp : ℤ[X]), ∀ {r : ℂ} (hr : r ∈ (p.map (algebra_map ℤ ℂ)).roots),
+    (n * exp r - q * aeval r gp : ℂ).abs ≤ c ^ q / (q - 1)! :=
+begin
+  let p' := λ q, (X ^ (q - 1) * p ^ q).map (algebra_map ℤ ℂ),
+  have : ∃ c, ∀ (q : ℕ) (x ∈ set.Ioc 0 s.abs), ((p' q).eval (x • exp (s.arg • I))).abs ≤ c ^ q,
+  { 
+  },
+  let c' := λ r h, (P_le p' r h).some,
+  have Pp'_le := λ r h, (P_le p' r h).some_spec,
+  
+end
+
+/-
+
+lemma sum_ideriv_sl (p : R[X]) (q : ℕ) :
+  ∃ (gp : R[X]), ∀ (r : A) {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ q * p'),
+    aeval r p.sum_ideriv = q! • aeval r gp := by
+
+exp s * (X^(q-1)p^q).sum_ideriv.eval 0 - aeval r (X^(q-1)p^q).sum_ideriv.eval =: P p r ≤ c ^ q
+
+aeval r (X^(q-1)p^q).sum_ideriv = (q - 1)! • p'.eval r + q! • aeval r gp := by
+    aeval r p.sum_ideriv = q! • aeval r gp
+
+  ∃ c ≥ 0, ∀ q ≥ 1, (P (p q) s).abs ≤ c ^ q := by
+-/
+
 variables {ι : Type*} [fintype ι]
   (c : ι → ℤ) (t : ι → ℤ[X])
 /-
@@ -497,7 +529,7 @@ variables {ι : Type*} [fintype ι]
 
 lemma sum_P_eq (hct : ∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map exp).sum = 0) (p : ℂ[X]) :
   ∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (P p)).sum =
-  -∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (λ r, p.sum_ideriv.eval r)).sum :=
+  -∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (λ x, p.sum_ideriv.eval x)).sum :=
 by simp_rw [P, multiset.sum_map_sub, smul_sub, sum_sub_distrib, multiset.sum_map_mul_right,
   ← smul_mul_assoc, ← sum_mul, hct, zero_mul, zero_sub]
 
@@ -605,24 +637,28 @@ begin
 end
 -/
 
-lemma F_sum_ideriv_eval (p : ℤ[X]) (p' : ℂ[X]) {r : ℂ} (hr : r ∈ (p.map (algebra_map ℤ ℂ)).roots)
-  {q : ℕ} (hq : 0 < q) :
-  ∃ n', (F q p p').sum_ideriv.eval r =
+lemma F_sum_ideriv_eval {q : ℕ} (hq : 0 < q)
+  (p : ℤ[X]) (p' : ℂ[X]) {r : ℂ} (hr : r ∈ (p.map (algebra_map ℤ ℂ)).roots) :
+  ∃ n' : ℤ, (F q p p').sum_ideriv.eval r = ---- ℤ 改成数域？
     (q - 1)! * ((p.map (algebra_map ℤ ℂ)).derivative ^ (q - 1) * p').eval r + q! * n' := by
 { rw [eval_mul, eval_pow, eval_root_derivative' _ hr, ← eval_pow, ← eval_mul],
   refine sum_ideriv_sl' _ _ hq _,
   rw [F_eq, ← multiset.prod_map_erase _ hr, mul_left_comm, mul_pow, multiset.prod_map_pow,
     C_pow, mul_assoc], }
 
-lemma sum_P_F_eq (q : ℕ)
+lemma sum_P_F_eq {q : ℕ} (hq : 0 < q)
   (hct : ∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map exp).sum = 0)
-  {p : ℤ[X]} (hp : p ≠ 0) {r : ℂ} (hr : r ∈ (p.map (algebra_map ℤ ℂ)).roots) :
+  (p : ℤ[X]) {r : ℂ} (hr : r ∈ (p.map (algebra_map ℤ ℂ)).roots) :
   ∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (P (F q p (p.erase_root r)))).sum =
-  -∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (λ r, (F q p).sum_ideriv.eval r)).sum + 1 :=
+  37 :=
+  -- -∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (λ x, (F q p (p.erase_root x)).sum_ideriv.eval r)).sum + 1 :=
 begin
-  have F0 : (F_ℂ q p).sum_ideriv ≠ 0,
-  { rw [← sum_ideriv_linear_equiv_eq_sum_ideriv, linear_equiv.map_ne_zero_iff, F_ℂ, F,
-      map_ne_zero_of_injective _ (algebra_map ℤ ℂ).injective_int], exact pow_ne_zero _ hp, },
+ /- have F0 : (F q p (p.erase_root r)).sum_ideriv ≠ 0,
+  { rw [← sum_ideriv_linear_equiv_eq_sum_ideriv, linear_equiv.map_ne_zero_iff, F,
+      map_ne_zero_of_injective _ (algebra_map ℤ ℂ).injective_int], exact pow_ne_zero _ hp, },-/
+  let n' : ∀ x : ℂ, ℤ := λ x, if hx : x ∈ (p.map (algebra_map ℤ ℂ)).roots
+    then (F_sum_ideriv_eval hq p (p.erase_root r) hx).some else 0,
+  obtain ⟨n', h⟩ := F_sum_ideriv_eval hq p (p.erase_root r) hr,
   simp_rw [sum_P_eq _ _ hct],
   
  --   ← function.comp (resultant_right this) ((λ (x : ℂ), X - C x)),
