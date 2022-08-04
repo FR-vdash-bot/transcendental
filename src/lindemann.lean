@@ -257,22 +257,25 @@ begin
         by rw [smul_mul_assoc],
 end
 
-def iterated_deriv_small (p : R[X]) (q : ℕ) (r : A)
+lemma iterated_deriv_small (p : R[X]) (q : ℕ) (r : A)
   {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ q * p')
   {k : ℕ} (hk : k < q) :
-  aeval r (p.iterated_deriv k) = 0 := by
-{ have h : ∀ x, (X - C r) ^ (q - (k - x)) = (X - C r) ^ 1 * (X - C r) ^ (q - (k - x) - 1),
+  aeval r (p.iterated_deriv k) = 0 :=
+begin
+  have h : ∀ x, (X - C r) ^ (q - (k - x)) = (X - C r) ^ 1 * (X - C r) ^ (q - (k - x) - 1),
   { intros x, rw [← pow_add, add_tsub_cancel_of_le], rw [nat.lt_iff_add_one_le] at hk,
     exact (le_tsub_of_add_le_left hk).trans (tsub_le_tsub_left (tsub_le_self : _ ≤ k) _), },
   rw [aeval_def, eval₂_eq_eval_map, iterated_deriv, ← iterate_derivative_map, ← iterated_deriv],
   simp_rw [hp, iterated_deriv_mul, iterated_deriv_X_sub_C_pow, ← smul_mul_assoc, smul_smul, h,
     ← mul_smul_comm, mul_assoc, ← mul_sum, eval_mul, pow_one, eval_sub, eval_X, eval_C, sub_self,
-    zero_mul], }
+    zero_mul],
+end
 
-def iterated_deriv_of_eq (p : R[X]) (q : ℕ) (r : A)
+lemma iterated_deriv_of_eq (p : R[X]) (q : ℕ) (r : A)
   {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ q * p') :
-  aeval r (p.iterated_deriv q) = q! • p'.eval r := by
-{ have h : ∀ x ≥ 1, x ≤ q →
+  aeval r (p.iterated_deriv q) = q! • p'.eval r :=
+begin
+  have h : ∀ x ≥ 1, x ≤ q →
     (X - C r) ^ (q - (q - x)) = (X - C r) ^ 1 * (X - C r) ^ (q - (q - x) - 1),
   { intros x h h', rw [← pow_add, add_tsub_cancel_of_le], rwa [tsub_tsub_cancel_of_le h'], },
   rw [aeval_def, eval₂_eq_eval_map, iterated_deriv, ← iterate_derivative_map, ← iterated_deriv],
@@ -282,14 +285,16 @@ def iterated_deriv_of_eq (p : R[X]) (q : ℕ) (r : A)
   convert zero_add _, rw [← coe_eval_ring_hom, map_sum], apply sum_eq_zero, intros x hx,
   rw [coe_eval_ring_hom, h (x + 1) le_add_self (nat.add_one_le_iff.mpr (mem_range.mp hx)),
     pow_one, eval_mul, eval_smul, eval_mul, eval_sub, eval_X, eval_C, sub_self, zero_mul,
-    smul_zero, zero_mul], }
+    smul_zero, zero_mul],
+end
 
 variable (A)
 
-def iterated_deriv_large (p : R[X]) (q : ℕ)
+lemma iterated_deriv_large (p : R[X]) (q : ℕ)
   {k : ℕ} (hk : q ≤ k) :
-  ∃ (gp : R[X]), ∀ (r : A), aeval r (p.iterated_deriv k) = q! • aeval r gp := by
-{ obtain ⟨p', hp'⟩ := iterated_deriv_eq_factorial_mul p k,
+  ∃ (gp : R[X]), ∀ (r : A), aeval r (p.iterated_deriv k) = q! • aeval r gp :=
+begin
+  obtain ⟨p', hp'⟩ := iterated_deriv_eq_factorial_mul p k,
   use (k.desc_factorial (k - q) : ℤ) • p',
   intros r,
   rw [hp', aeval_def, eval₂_eq_eval_map, nsmul_eq_mul, polynomial.map_mul,
@@ -298,12 +303,14 @@ def iterated_deriv_large (p : R[X]) (q : ℕ)
     ← nat.factorial_mul_desc_factorial (tsub_le_self : k - q ≤ k), tsub_tsub_cancel_of_le hk,
     nat.cast_mul, mul_assoc],
   rw [aeval_def, eval₂_eq_eval_map, zsmul_eq_mul, polynomial.map_mul,
-    map_int_cast, eval_mul, eval_int_cast, int.cast_coe_nat, nsmul_eq_mul], }
+    map_int_cast, eval_mul, eval_int_cast, int.cast_coe_nat, nsmul_eq_mul],
+end
 
 lemma sum_ideriv_sl (p : R[X]) (q : ℕ) :
   ∃ (gp : R[X]), ∀ (r : A) {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ q * p'),
-    aeval r p.sum_ideriv = q! • aeval r gp := by
-{ have h : ∀ k,
+    aeval r p.sum_ideriv = q! • aeval r gp :=
+begin
+  have h : ∀ k,
     ∃ (gp : R[X]), ∀ (r : A) {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ q * p'),
     aeval r (p.iterated_deriv k) = q! • aeval r gp,
   { intros k, cases lt_or_ge k q with hk hk,
@@ -314,13 +321,15 @@ lemma sum_ideriv_sl (p : R[X]) (q : ℕ) :
     aeval r (p.iterated_deriv k) = q! • aeval r (c k) := λ k, (h k).some_spec,
   use (range (p.nat_degree + 1)).sum c,
   intros r p' hp,
-  rw [sum_ideriv_apply, map_sum], simp_rw [hc _ r hp, map_sum, smul_sum], }
+  rw [sum_ideriv_apply, map_sum], simp_rw [hc _ r hp, map_sum, smul_sum],
+end
 
 lemma sum_ideriv_sl' (p : R[X]) {q : ℕ} (hq : 0 < q) :
   ∃ (gp : R[X]), ∀ (inj_amap : function.injective (algebra_map R A))
     (r : A) {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ (q - 1) * p'),
-    aeval r p.sum_ideriv = (q - 1)! • p'.eval r + q! • aeval r gp := by
-{ rcases eq_or_ne p 0 with rfl | p0,
+    aeval r p.sum_ideriv = (q - 1)! • p'.eval r + q! • aeval r gp :=
+begin
+  rcases eq_or_ne p 0 with rfl | p0,
   { use 0, intros inj_amap r p' hp,
     rw [map_zero, map_zero, smul_zero, add_zero], rw [polynomial.map_zero] at hp,
     replace hp := (mul_eq_zero.mp hp.symm).resolve_left _,
@@ -347,13 +356,15 @@ lemma sum_ideriv_sl' (p : R[X]) {q : ℕ} (hq : 0 < q) :
   { rw [← iterated_deriv_of_eq _ _ _ hp], },
   { rw [smul_sum, sum_congr rfl], intros k hk, exact hc k (mem_Ico.mp hk).1 r, },
   { rw [range_eq_Ico, disjoint_iff_inter_eq_empty, eq_empty_iff_forall_not_mem],
-    intros x hx, rw [mem_inter, mem_Ico, mem_Ico] at hx, exact hx.1.2.not_le hx.2.1, }, }
+    intros x hx, rw [mem_inter, mem_Ico, mem_Ico] at hx, exact hx.1.2.not_le hx.2.1, },
+end
 
 variable {A}
 
 lemma remove_X_factor {x : ℝ} (hx : x ≠ 0) (p' : ℤ[X]) (p0' : p' ≠ 0) (p_ann' : aeval x p' = 0) :
-  ∃ (p : ℤ[X]) (p0 : p ≠ 0) (hp : ¬ X ∣ p), aeval x p = 0 := by
-{ revert p0' p_ann', refine unique_factorization_monoid.induction_on_prime p' (absurd rfl) _ _,
+  ∃ (p : ℤ[X]) (p0 : p ≠ 0) (hp : ¬ X ∣ p), aeval x p = 0 :=
+begin
+  revert p0' p_ann', refine unique_factorization_monoid.induction_on_prime p' (absurd rfl) _ _,
   { intros p p_unit p0 p_ann,
     obtain ⟨r, unit_r, hr⟩ := polynomial.is_unit_iff.mp p_unit,
     rw [← hr, aeval_C, algebra_map_int_eq, ring_hom.eq_int_cast, int.cast_eq_zero] at p_ann,
@@ -369,29 +380,8 @@ lemma remove_X_factor {x : ℝ} (hx : x ≠ 0) (p' : ℤ[X]) (p0' : p' ≠ 0) (p
         algebra_map_int_eq, ring_hom.eq_int_cast] at p_ann,
     exact unit_r.elim (λ h', hx (by rwa [h', int.cast_one, mul_one] at p_ann))
       (λ h', hx
-        (by rwa [h', int.cast_neg, mul_neg, int.cast_one, mul_one, neg_eq_zero] at p_ann)), }, }
-
-namespace complex
-
-section
-variables {f : ℝ → ℂ} {f' : ℂ} {x : ℝ} {s : set ℝ}
-
-open filter asymptotics set function
-open_locale classical topological_space
-open complex
-
-lemma deriv_within_cexp_real (hf : differentiable_within_at ℝ f s x)
-  (hxs : unique_diff_within_at ℝ s x) :
-  deriv_within (λx, complex.exp (f x)) s x = complex.exp (f x) * (deriv_within f s x) :=
-hf.has_deriv_within_at.cexp.deriv_within hxs
-
-@[simp] lemma deriv_cexp_real (hc : differentiable_at ℝ f x) :
-  deriv (λx, complex.exp (f x)) x = complex.exp (f x) * (deriv f x) :=
-hc.has_deriv_at.cexp.deriv
-
+        (by rwa [h', int.cast_neg, mul_neg, int.cast_one, mul_one, neg_eq_zero] at p_ann)), },
 end
-
-end complex
 
 open complex
 
@@ -406,10 +396,11 @@ lemma differentiable.real_of_complex {e : ℂ → ℂ} (h : differentiable ℂ e
 lemma deriv_eq_f (p : ℂ[X]) (s : ℂ) :
   deriv (λ (x : ℝ), -(exp (-(x • exp (s.arg • I))) * p.sum_ideriv.eval (x • exp (s.arg • I))) /
     exp (s.arg • I)) =
-  λ (x : ℝ), exp (-(x • exp (s.arg • I))) * p.eval (x • exp (s.arg • I)) := by
-{ have h : (λ (y : ℝ), p.sum_ideriv.eval (y • exp (s.arg • I))) =
+  λ (x : ℝ), exp (-(x • exp (s.arg • I))) * p.eval (x • exp (s.arg • I)) :=
+begin
+  have h : (λ (y : ℝ), p.sum_ideriv.eval (y • exp (s.arg • I))) =
     (λ x, p.sum_ideriv.eval x) ∘ (λ y, y • exp (s.arg • I)) := rfl,
-  funext, rw [deriv_div_const, deriv.neg, deriv_mul, deriv_cexp_real, deriv.neg],
+  funext, rw [deriv_div_const, deriv.neg, deriv_mul, deriv_cexp, deriv.neg],
   any_goals { simp_rw [h] }, clear h,
   rw [deriv_smul_const, deriv_id'', deriv.comp, polynomial.deriv, deriv_smul_const, deriv_id''],
   simp_rw [derivative_map, one_smul, mul_assoc, ← mul_add],
@@ -429,13 +420,15 @@ lemma deriv_eq_f (p : ℂ[X]) (s : ℂ) :
     apply differentiable.mul_const <|>
     apply polynomial.differentiable <|>
     apply differentiable.smul_const <|>
-    exact differentiable_id } }, }
+    exact differentiable_id }, },
+end
 
 lemma integral_f_eq (p : ℂ[X]) (s : ℂ) :
   ∫ x in 0..s.abs, exp (-(x • exp (s.arg • I))) * p.eval (x • exp (s.arg • I)) =
     -(exp (-s) * p.sum_ideriv.eval s ) / exp (s.arg • I) -
-    -(p.sum_ideriv.eval 0) / exp (s.arg • I) := by
-{ convert interval_integral.integral_deriv_eq_sub' (λ (x : ℝ), -(exp (-(x • exp (s.arg • I))) *
+    -(p.sum_ideriv.eval 0) / exp (s.arg • I) :=
+begin
+  convert interval_integral.integral_deriv_eq_sub' (λ (x : ℝ), -(exp (-(x • exp (s.arg • I))) *
     p.sum_ideriv.eval (x • exp (s.arg • I))) / exp (s.arg • I)) (deriv_eq_f p s) _ _,
   any_goals { simp_rw [real_smul, abs_mul_exp_arg_mul_I], },
   { simp_rw [zero_smul, neg_zero', complex.exp_zero, one_mul], },
@@ -449,15 +442,17 @@ lemma integral_f_eq (p : ℂ[X]) (s : ℂ) :
     exact differentiable_id'.smul_const _, },
   { refine ((continuous_id'.smul continuous_const).neg.cexp.mul _).continuous_on,
     convert_to continuous ((λ (y : ℂ), p.eval y) ∘ (λ (x : ℝ), x • exp (s.arg • I))),
-    exact p.continuous_aeval.comp (continuous_id'.smul continuous_const), }, }
+    exact p.continuous_aeval.comp (continuous_id'.smul continuous_const), },
+end
 
 def P (p : ℂ[X]) (s : ℂ) := exp s * p.sum_ideriv.eval 0 - p.sum_ideriv.eval s
 
 lemma P_le' (p : ℕ → ℂ[X]) (s : ℂ)
   (h : ∃ c, ∀ (q : ℕ) (x ∈ set.Ioc 0 s.abs), ((p q).eval (x • exp (s.arg • I))).abs ≤ c ^ q) :
   ∃ c ≥ 0, ∀ (q : ℕ), (P (p q) s).abs ≤
-  real.exp s.re * (real.exp s.abs * c ^ q * s.abs) := by
-{ simp_rw [P], cases h with c hc, replace hc := λ q x hx, (hc q x hx).trans (le_abs_self _),
+  real.exp s.re * (real.exp s.abs * c ^ q * s.abs) :=
+begin
+  simp_rw [P], cases h with c hc, replace hc := λ q x hx, (hc q x hx).trans (le_abs_self _),
   simp_rw [_root_.abs_pow] at hc, use [|c|, abs_nonneg _], intros q,
   have h := integral_f_eq (p q) s,
   rw [← sub_div, eq_div_iff (exp_ne_zero _), ← @mul_right_inj' _ _ (exp s) _ _ (exp_ne_zero _),
@@ -473,12 +468,14 @@ lemma P_le' (p : ℕ → ℂ[X]) (s : ℂ)
   intros x hx, rw [norm_mul], refine mul_le_mul _ (hc q x hx) (norm_nonneg _) (real.exp_pos _).le,
   rw [norm_eq_abs, abs_exp, real.exp_le_exp], apply (re_le_abs _).trans, rw [← norm_eq_abs,
     norm_neg, norm_smul, norm_eq_abs, abs_exp, smul_re, I_re, smul_zero, real.exp_zero, mul_one,
-    real.norm_eq_abs, abs_eq_self.mpr hx.1.le], exact hx.2, }
+    real.norm_eq_abs, abs_eq_self.mpr hx.1.le], exact hx.2,
+end
 
 lemma P_le (p : ℕ → ℂ[X]) (s : ℂ)
   (h : ∃ c, ∀ (q : ℕ) (x ∈ set.Ioc 0 s.abs), ((p q).eval (x • exp (s.arg • I))).abs ≤ c ^ q) :
-  ∃ c ≥ 0, ∀ q ≥ 1, (P (p q) s).abs ≤ c ^ q := by
-{ simp_rw [P], obtain ⟨c', hc', h'⟩ := P_le' p s h, clear h,
+  ∃ c ≥ 0, ∀ q ≥ 1, (P (p q) s).abs ≤ c ^ q :=
+begin
+  simp_rw [P], obtain ⟨c', hc', h'⟩ := P_le' p s h, clear h,
   let c₁ := max (real.exp s.re) 1,
   let c₂ := max (real.exp s.abs) 1, have h₂ : 0 ≤ real.exp s.abs := (real.exp_pos _).le,
   let c₃ := max s.abs 1,            have h₃ : 0 ≤ s.abs := abs_nonneg _,
@@ -491,34 +488,92 @@ lemma P_le (p : ℕ → ℂ[X]) (s : ℂ)
     (λ h, h.1.symm ▸ le_self_pow h.2 hq) (λ h, by rw [h.1, one_pow]; exact h.2.le),
   refine mul_le_mul le_max_one_pow _ (mul_nonneg (mul_nonneg h₂ hcq') h₃) hcq,
   refine mul_le_mul _ le_max_one_pow h₃ (mul_nonneg hcq hcq'),
-  refine mul_le_mul le_max_one_pow le_rfl hcq' hcq, }
-
-lemma exp_polynomial_approx (p : ℤ[X]) : ∃ c ≥ 0, ∀ (q : ℕ),
-  ∃ (n : ℤ) (hn : n % q ≠ 0) (gp : ℤ[X]), ∀ {r : ℂ} (hr : r ∈ (p.map (algebra_map ℤ ℂ)).roots),
-    (n * exp r - q * aeval r gp : ℂ).abs ≤ c ^ q / (q - 1)! :=
-begin
-  let p' := λ q, (X ^ (q - 1) * p ^ q).map (algebra_map ℤ ℂ),
-  have : ∃ c, ∀ (q : ℕ) (x ∈ set.Ioc 0 s.abs), ((p' q).eval (x • exp (s.arg • I))).abs ≤ c ^ q,
-  { 
-  },
-  let c' := λ r h, (P_le p' r h).some,
-  have Pp'_le := λ r h, (P_le p' r h).some_spec,
-  
+  refine mul_le_mul le_max_one_pow le_rfl hcq' hcq,
 end
 
-/-
-
-lemma sum_ideriv_sl (p : R[X]) (q : ℕ) :
-  ∃ (gp : R[X]), ∀ (r : A) {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ q * p'),
-    aeval r p.sum_ideriv = q! • aeval r gp := by
-
-exp s * (X^(q-1)p^q).sum_ideriv.eval 0 - aeval r (X^(q-1)p^q).sum_ideriv.eval =: P p r ≤ c ^ q
-
-aeval r (X^(q-1)p^q).sum_ideriv = (q - 1)! • p'.eval r + q! • aeval r gp := by
-    aeval r p.sum_ideriv = q! • aeval r gp
-
-  ∃ c ≥ 0, ∀ q ≥ 1, (P (p q) s).abs ≤ c ^ q := by
--/
+lemma exp_polynomial_approx (p : ℤ[X]) (p0 : p.eval 0 ≠ 0) :
+  ∃ c, ∀ (q > (eval 0 p).nat_abs) (q_prime : nat.prime q),
+  ∃ (n : ℤ) (hn : n % q ≠ 0) (gp : ℤ[X]), ∀ {r : ℂ} (hr : r ∈ (p.map (algebra_map ℤ ℂ)).roots),
+    (n • exp r - q • aeval r gp : ℂ).abs ≤ c ^ q / (q - 1)! :=
+begin
+  let p' := λ q, (X ^ (q - 1) * p ^ q).map (algebra_map ℤ ℂ),
+  have : ∀ s : ℂ, ∃ c, ∀ (q : ℕ) (x ∈ set.Ioc 0 s.abs),
+    ((p' q).eval (x • exp (s.arg • I))).abs ≤ c ^ q,
+  { intros s, dsimp only [p'],
+    simp_rw [polynomial.map_mul, polynomial.map_pow, map_X, eval_mul, eval_pow, eval_X,
+      complex.abs_mul, complex.abs_pow, real_smul, complex.abs_mul, abs_exp_of_real_mul_I,
+      abs_of_real, mul_one, ← eval₂_eq_eval_map, ← aeval_def],
+    have : metric.bounded
+      ((λ x, max (|x|) 1 * ((aeval (↑x * exp (↑s.arg * I)) p)).abs) '' set.Ioc 0 (abs s)),
+    { have h :
+        ((λ x, max (|x|) 1 * ((aeval (↑x * exp (↑s.arg * I)) p)).abs) '' set.Ioc 0 (abs s)) ⊆
+        ((λ x, max (|x|) 1 * ((aeval (↑x * exp (↑s.arg * I)) p)).abs) '' set.Icc 0 (abs s)),
+      { exact set.image_subset _ set.Ioc_subset_Icc_self, },
+      refine (is_compact.image is_compact_Icc _).bounded.mono h,
+      { refine (continuous_id.abs.max continuous_const).mul _,
+        refine complex.continuous_abs.comp ((p.continuous_aeval).comp _),
+        exact continuous_of_real.mul continuous_const, }, },
+    cases this.exists_norm_le with c h,
+    use c, intros q x hx,
+    specialize h (max (|x|) 1 * (aeval (↑x * exp (↑s.arg * I)) p).abs) (set.mem_image_of_mem _ hx),
+    refine le_trans _ (pow_le_pow_of_le_left (norm_nonneg _) h _),
+    simp_rw [norm_mul, real.norm_eq_abs, complex.abs_abs, mul_pow],
+    refine mul_le_mul_of_nonneg_right _ (pow_nonneg (complex.abs_nonneg _) _),
+    rw [max_def], split_ifs with h1x,
+    { rw [_root_.abs_abs], exact pow_le_pow h1x (nat.sub_le _ _), },
+    { push_neg at h1x,
+      rw [_root_.abs_one, one_pow], exact pow_le_one _ (abs_nonneg _) h1x.le, }, },
+  let c' := λ r, (P_le p' r (this r)).some,
+  have c'0 : ∀ r, 0 ≤ c' r := λ r, (P_le p' r (this r)).some_spec.some,
+  have Pp'_le : ∀ (r : ℂ) (q ≥ 1), abs (P (p' q) r) ≤ c' r ^ q :=
+    λ r, (P_le p' r (this r)).some_spec.some_spec,
+  let c := if h : ((p.map (algebra_map ℤ ℂ)).roots.map c').to_finset.nonempty
+    then ((p.map (algebra_map ℤ ℂ)).roots.map c').to_finset.max' h else 0,
+  have hc : ∀ x ∈ (p.map (algebra_map ℤ ℂ)).roots, c' x ≤ c,
+  { intros x hx, dsimp only [c],
+    split_ifs,
+    { apply finset.le_max', rw [multiset.mem_to_finset],
+      refine multiset.mem_map_of_mem _ hx, },
+    { rw [nonempty_iff_ne_empty, ne.def, multiset.to_finset_eq_empty,
+        multiset.eq_zero_iff_forall_not_mem] at h, push_neg at h,
+      exact absurd (multiset.mem_map_of_mem _ hx) (h (c' x)), }, },
+  use c,
+  intros q q_gt q_prime,
+  have q0 : 0 < q := nat.prime.pos q_prime,
+  obtain ⟨gp', h'⟩ := sum_ideriv_sl' ℤ (X ^ (q - 1) * p ^ q) q0,
+  simp_rw [ring_hom.algebra_map_to_algebra, map_id] at h',
+  specialize h' (ring_hom.injective_int _) 0 (by rw [C_0, sub_zero]),
+  rw [eval_pow] at h',
+  use p.eval 0 ^ q + q • aeval 0 gp',
+  split,
+  { rw [int.add_mod, nsmul_eq_mul, int.mul_mod_right, add_zero, int.mod_mod, ne.def,
+      ← int.dvd_iff_mod_eq_zero],
+    intros h,
+    replace h := int.prime.dvd_pow' q_prime h, rw [int.coe_nat_dvd_left] at h,
+    replace h := nat.le_of_dvd (int.nat_abs_pos_of_ne_zero p0) h,
+    revert h, rwa [imp_false, not_le], },
+  obtain ⟨gp, h⟩ := sum_ideriv_sl ℂ (X ^ (q - 1) * p ^ q) q,
+  use gp,
+  intros r hr,
+  have : (X ^ (q - 1) * p ^ q).map (algebra_map ℤ ℂ) = (X - C r) ^ q * (X ^ (q - 1) *
+    (C (map (algebra_map ℤ ℂ) p).leading_coeff *
+      (((p.map (algebra_map ℤ ℂ)).roots.erase r).map (λ (a : ℂ), X - C a)).prod) ^ q),
+  { rw [mul_left_comm, ← mul_pow, mul_left_comm (_ - _), multiset.prod_map_erase hr],
+    have : (p.map (algebra_map ℤ ℂ)).roots.card = (p.map (algebra_map ℤ ℂ)).nat_degree :=
+      splits_iff_card_roots.mp (is_alg_closed.splits _),
+    rw [C_leading_coeff_mul_prod_multiset_X_sub_C this, polynomial.map_mul, polynomial.map_pow,
+      polynomial.map_pow, map_X], },
+  specialize h r this, clear this,
+  rw [le_div_iff (nat.cast_pos.mpr (nat.factorial_pos _) : (0 : ℝ) < _), ← abs_of_nat,
+    ← complex.abs_mul, mul_comm, mul_sub, ← nsmul_eq_mul, ← nsmul_eq_mul, smul_smul,
+    mul_comm, nat.mul_factorial_pred q0, ← h],
+  rw [nsmul_eq_mul, ← int.cast_coe_nat, ← zsmul_eq_mul, smul_smul, mul_add, ← nsmul_eq_mul,
+    ← nsmul_eq_mul, smul_smul, mul_comm, nat.mul_factorial_pred q0, ← h', zsmul_eq_mul,
+    aeval_def, eval₂_at_zero, ring_hom.eq_int_cast, int.cast_id, ← int.coe_cast_ring_hom,
+    ← algebra_map_int_eq, ← eval₂_at_zero, aeval_def, eval₂_eq_eval_map, eval₂_eq_eval_map,
+    mul_comm, ← sum_ideriv_map, ← P],
+  exact (Pp'_le r q (nat.one_le_of_lt q0)).trans (pow_le_pow_of_le_left (c'0 r) (hc r hr) _),
+end
 
 variables {ι : Type*} [fintype ι]
   (c : ι → ℤ) (t : ι → ℤ[X])
@@ -532,31 +587,6 @@ lemma sum_P_eq (hct : ∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.ma
   -∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (λ x, p.sum_ideriv.eval x)).sum :=
 by simp_rw [P, multiset.sum_map_sub, smul_sub, sum_sub_distrib, multiset.sum_map_mul_right,
   ← smul_mul_assoc, ← sum_mul, hct, zero_mul, zero_sub]
-
-section
-open list
-
-@[simp, to_additive]
-lemma list.prod_map_erase {ι M : Type*}
-  [decidable_eq ι] [comm_monoid M] (f : ι → M) {a} :
-  ∀ {l : list ι}, a ∈ l → f a * ((l.erase a).map f).prod = (l.map f).prod
-| (b :: l) h :=
-  begin
-    obtain rfl | ⟨ne, h⟩ := decidable.list.eq_or_ne_mem_of_mem h,
-    { simp only [list.map, list.erase_cons_head, list.prod_cons] },
-    { simp only [list.map, list.erase, if_neg (mt eq.symm ne),
-      list.prod_cons, list.prod_map_erase h, mul_left_comm (f a) (f b)], }
-  end
-
-@[simp, to_additive]
-lemma multiset.prod_map_erase {ι α : Type*} [comm_monoid α]
-  {m : multiset ι} (f : ι → α)
-  [decidable_eq ι] {a : ι} (h : a ∈ m) :
-  f a * ((m.erase a).map f).prod = (m.map f).prod :=
-by rw [← m.coe_to_list, multiset.coe_erase, multiset.coe_map, multiset.coe_map,
-multiset.coe_prod, multiset.coe_prod, list.prod_map_erase f ((m.mem_to_list a).2 h)]
-
-end
 
 def F (q : ℕ) (p : ℤ[X]) (p' : ℂ[X]) : ℂ[X] :=
 p.map (algebra_map ℤ ℂ) ^ (q - 1) * p'
@@ -1056,8 +1086,6 @@ lemma complex.is_integral_int_I : is_integral ℤ I := by
 
 lemma complex.is_integral_rat_I : is_integral ℚ I :=
 is_integral_of_is_scalar_tower _ complex.is_integral_int_I
-
-open complex
 
 lemma transcendental_pi : transcendental ℤ real.pi := by
 { intro h,
