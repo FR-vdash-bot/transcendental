@@ -574,7 +574,7 @@ begin
     mul_comm, ← sum_ideriv_map, ← P],
   exact (Pp'_le r q (nat.one_le_of_lt q0)).trans (pow_le_pow_of_le_left (c'0 r) (hc r hr) _),
 end
-
+/-
 variables {ι : Type*} [fintype ι]
   (c : ι → ℤ) (t : ι → ℤ[X])
 /-
@@ -694,22 +694,7 @@ begin
  --   ← function.comp (resultant_right this) ((λ (x : ℂ), X - C x)),
   --  ← map_multiset_sum],
 end
-
-
-/-
-lemma lemma_A (M : multiset (ℤ × ℤ[X])) (m0 : ∀ (m : ℤ × ℤ[X]), m ∈ M → m.2 ≠ 0)
-  (ht : (M.map (λ m : ℤ × ℤ[X],
-    m.1 • ((m.2.map (algebra_map ℤ ℂ)).roots.map (λ r, exp r)).sum)).sum = 0) :
-  ∀ (m : ℤ × ℤ[X]), m ∈ M → m.1 = 0 := by
-{ let f : ∀ q (prime_q : nat.prime q),
-    ∀ (m : ℤ × ℤ[X]), m ∈ M → ∀ (r : ℂ), r ∈ (m.2.map (algebra_map ℤ ℂ)).roots → ℂ[X] :=
-    λ q prime_q m hm r hr, (M.map (λ m : ℤ × ℤ[X],
-      ((m.2.map (algebra_map ℤ ℂ)).roots.map (λ r, (X - C r) ^ q)).sum)).prod / (X - C r),
-  let I : ∀ (s : ℝ) q (prime_q : nat.prime q),
-    ∀ (m : ℤ × ℤ[X]), m ∈ M → ∀ (r : ℂ), r ∈ (m.2.map (algebra_map ℤ ℂ)).roots → ℂ :=
-    λ s q prime_q m hm r hr, 
-  
-}-/
+-/
 .
 /-
 @[simps apply]
