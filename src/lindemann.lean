@@ -435,13 +435,13 @@ begin
   { intros x hx, apply (differentiable.mul _ _).neg.div_const.differentiable_at,
     apply @differentiable.real_of_complex (λ c : ℂ, exp (-(c * exp (s.arg • I)))),
     refine (differentiable_id.mul_const _).neg.cexp,
-    convert_to differentiable ℝ ((λ (y : ℂ), p.sum_ideriv.eval y) ∘
+    change differentiable ℝ ((λ (y : ℂ), p.sum_ideriv.eval y) ∘
       (λ (x : ℝ), x • exp (s.arg • I))),
     apply differentiable.comp,
     apply @differentiable.restrict_scalars ℝ _ ℂ, exact polynomial.differentiable _,
     exact differentiable_id'.smul_const _, },
   { refine ((continuous_id'.smul continuous_const).neg.cexp.mul _).continuous_on,
-    convert_to continuous ((λ (y : ℂ), p.eval y) ∘ (λ (x : ℝ), x • exp (s.arg • I))),
+    change continuous ((λ (y : ℂ), p.eval y) ∘ (λ (x : ℝ), x • exp (s.arg • I))),
     exact p.continuous_aeval.comp (continuous_id'.smul continuous_const), },
 end
 
@@ -696,22 +696,12 @@ begin
 end
 -/
 .
-/-
-@[simps apply]
-def finsupp.map_domain.add_equiv {α : Type*} {β : Type*} {M : Type*} [add_comm_monoid M]
-  (f : α ≃ β) :
-  (α →₀ M) ≃+ (β →₀ M) :=
-{ to_fun := (finsupp.equiv_map_domain f : (α →₀ M) → (β →₀ M)),
-  inv_fun := (finsupp.equiv_map_domain f.symm : (β →₀ M) → (α →₀ M)),
-  map_add' := λ x y,
-    by simp_rw [finsupp.equiv_map_domain_eq_map_domain, finsupp.map_domain_add],
-  ..finsupp.equiv_congr_left f }
 
 namespace add_monoid_algebra
 
-@[simps apply]
-def ring_equiv_congr_left {R : Type*} {S : Type*} {G : Type*}
-  [semiring R] [semiring S] [add_monoid G] (f : R ≃+* S) :
+@[simps]
+def ring_equiv_congr_left {R S G : Type*} [semiring R] [semiring S] [add_monoid G]
+  (f : R ≃+* S) :
   add_monoid_algebra R G ≃+* add_monoid_algebra S G :=
 { to_fun := (finsupp.map_range f f.map_zero :
     (add_monoid_algebra R G) → (add_monoid_algebra S G)),
@@ -728,40 +718,69 @@ def ring_equiv_congr_left {R : Type*} {S : Type*} {G : Type*}
   end,
   ..finsupp.map_range.add_equiv f.to_add_equiv }
 
-@[simps apply]
-def ring_equiv_of_add_equiv_right {R : Type*} {G : Type*} {H : Type*}
-  [semiring R] [add_monoid G] [add_monoid H] (f : G ≃+ H) :
-  add_monoid_algebra R G ≃+* add_monoid_algebra R H :=
-{ to_fun := (finsupp.equiv_map_domain f : add_monoid_algebra R G → add_monoid_algebra R H),
-  inv_fun := (finsupp.equiv_map_domain f.symm : add_monoid_algebra R H → add_monoid_algebra R G),
-  map_mul' := λ x y,
+@[simps]
+def alg_equiv_congr_left {k R S G : Type*} [comm_semiring k] [semiring R] [algebra k R]
+  [semiring S] [algebra k S] [add_monoid G] (f : R ≃ₐ[k] S) :
+  add_monoid_algebra R G ≃ₐ[k] add_monoid_algebra S G :=
+{ to_fun := (finsupp.map_range f f.map_zero :
+    (add_monoid_algebra R G) → (add_monoid_algebra S G)),
+  inv_fun := (finsupp.map_range f.symm f.symm.map_zero :
+    (add_monoid_algebra S G) → (add_monoid_algebra R G)),
+  commutes' := λ r,
   begin
-    ext, simp_rw [mul_apply, mul_def,
-      finsupp.equiv_map_domain_apply, finsupp.sum_apply, finsupp.equiv_map_domain_eq_map_domain],
-    rw [finsupp.sum_map_domain_index], congrm finsupp.sum x (λ g1 r1, _),
-    rw [finsupp.sum_map_domain_index], congrm finsupp.sum y (λ g2 r2, _),
-    { rw [finsupp.single_apply, equiv.eq_symm_apply, add_equiv.coe_to_equiv, map_add], },
-    all_goals { intro, simp only [mul_zero, zero_mul], simp only [if_t_t, finsupp.sum_zero], },
-    all_goals { intros m₁ m₂, simp only [mul_add, add_mul, ite_add_zero, finsupp.sum_add], },
+    ext,
+    simp_rw [add_monoid_algebra.coe_algebra_map, function.comp_app, finsupp.map_range_single],
+    congr' 2,
+    change f.to_alg_hom ((algebra_map k R) r) = (algebra_map k S) r,
+    rw [alg_hom.map_algebra_map],
   end,
-  ..finsupp.map_domain.add_equiv f.to_equiv }
+  ..ring_equiv_congr_left f.to_ring_equiv }
 
-@[simps apply]
-def ring_hom_of_add_monoid_hom_right {R : Type*} {G : Type*} {H : Type*}
-  [semiring R] [add_monoid G] [add_monoid H] (f : G →+ H) :
-  add_monoid_algebra R G →+* add_monoid_algebra R H :=
-{ to_fun := finsupp.map_domain f,
-  map_one' := by simp_rw [one_def, finsupp.map_domain_single, map_zero],
+@[simps]
+def alg_aut_congr_left {k R G : Type*}
+  [comm_semiring k] [semiring R] [algebra k R] [add_monoid G] :
+  (R ≃ₐ[k] R) →* add_monoid_algebra R G ≃ₐ[k] add_monoid_algebra R G :=
+{ to_fun := λ f, alg_equiv_congr_left f,
+  map_one' := by { ext, refl, },
+  map_mul' := λ x y, by { ext, refl, }, }
+
+@[simps]
+def map_domain_ring_equiv (k : Type*) [semiring k]
+  {G H : Type*} [add_monoid G] [add_monoid H] (f : G ≃+ H) :
+  add_monoid_algebra k G ≃+* add_monoid_algebra k H :=
+{ to_fun := finsupp.equiv_map_domain f,
+  inv_fun := finsupp.equiv_map_domain f.symm,
   map_mul' := λ x y,
   begin
-    simp_rw [mul_def, finsupp.map_domain_sum],
-    rw [finsupp.sum_map_domain_index], congrm finsupp.sum x (λ g1 r1, _),
-    rw [finsupp.sum_map_domain_index], congrm finsupp.sum y (λ g2 r2, _),
-    { rw [finsupp.map_domain_single, map_add], },
-    all_goals { intro, simp only [mul_zero, zero_mul, finsupp.single_zero, finsupp.sum_zero], },
-    all_goals { intros m₁ m₂, simp only [mul_add, add_mul, finsupp.single_add, finsupp.sum_add], },
+    simp_rw [← finsupp.dom_congr_apply],
+    induction x using finsupp.induction_linear,
+    { simp only [map_zero, zero_mul], }, { simp only [add_mul, map_add, *], },
+    induction y using finsupp.induction_linear;
+    simp only [mul_zero, zero_mul, map_zero, mul_add, map_add, *],
+    ext, simp only [finsupp.dom_congr_apply, single_mul_single, finsupp.equiv_map_domain_single,
+      add_equiv.coe_to_equiv, map_add],
   end,
-  ..finsupp.map_domain.add_monoid_hom f }
+  ..finsupp.dom_congr f.to_equiv }
+
+@[simps]
+def map_domain_alg_equiv (k A : Type*) [comm_semiring k] [semiring A] [algebra k A]
+  {G H : Type*} [add_monoid G] [add_monoid H] (f : G ≃+ H) :
+  add_monoid_algebra A G ≃ₐ[k] add_monoid_algebra A H :=
+{ to_fun := finsupp.equiv_map_domain f,
+  inv_fun := finsupp.equiv_map_domain f.symm,
+  commutes' := λ r, by simp only [function.comp_app, finsupp.equiv_map_domain_single,
+      add_monoid_algebra.coe_algebra_map, map_zero, add_equiv.coe_to_equiv],
+  ..map_domain_ring_equiv A f }
+
+@[simps]
+def map_domain_alg_aut (k A : Type*) [comm_semiring k] [semiring A] [algebra k A]
+  {G : Type*} [add_monoid G] :
+  (add_aut G) →* add_monoid_algebra A G ≃ₐ[k] add_monoid_algebra A G :=
+{ to_fun := map_domain_alg_equiv k A,
+  map_one' := by { ext, refl, },
+  map_mul' := λ x y, by { ext, refl, }, }
+
+/-
 
 private lemma eq_zero_or_eq_zero_of_mul_eq_zero_finite
   {R : Type*} {S : Type*} {M : Type*} [ring R] [is_domain R] [linear_ordered_semiring S]
@@ -771,7 +790,7 @@ begin
   
 end
 
-@[simps apply]
+@[simps]
 def finsupp.rename {R : Type*} {S : Type*} {ι : Type*} {ι' : Type*}
   [semiring R] [semiring S] (f : ι → ι') :
   add_monoid_algebra R (ι →₀ S) →+* add_monoid_algebra R (ι' →₀ S) :=
@@ -851,9 +870,9 @@ def is_domain
   is_domain (add_monoid_algebra R M) :=
 { eq_zero_or_eq_zero_of_mul_eq_zero := eq_zero_or_eq_zero_of_mul_eq_zero S,
   .. (infer_instance : nontrivial (add_monoid_algebra R M)), }
-
+-/
 end add_monoid_algebra
-
+/-
 theorem eq_zero_or_eq_zero_of_mul_eq_zero
   {R : Type*} [comm_ring R] [is_domain R] {σ : Type*}
   (p q : mv_polynomial σ R) (h : p * q = 0) : p = 0 ∨ q = 0 :=
@@ -889,13 +908,15 @@ variables (s : finset ℂ)
 
 abbreviation Poly : ℚ[X] := ∏ x in s, minpoly ℚ x
 
-abbreviation K' (s : finset ℂ) : intermediate_field ℚ ℂ :=
+abbreviation K' : intermediate_field ℚ ℂ :=
 intermediate_field.adjoin ℚ ((Poly s).root_set ℂ)
 
 instance : is_splitting_field ℚ (K' s) (Poly s) :=
 adjoin_root_set_is_splitting_field (is_alg_closed.splits_codomain (Poly s))
 
 abbreviation K : Type* := (Poly s).splitting_field
+
+instance : is_galois ℚ (K s) := {}
 
 instance : is_domain (add_monoid_algebra (K s) (K s)) := sorry
 
@@ -930,18 +951,42 @@ variables {ι : Type*} [fintype ι]
 abbreviation Range (u : ι → ℂ) (v : ι → ℂ) : finset ℂ := univ.image u ∪ univ.image v
 
 lemma linear_independent_exp_aux' (s : finset ℂ)
-  (f : add_monoid_algebra (K s) (K s)) (f0 : f ≠ 0) (hf : f ∈ (Eval s).to_ring_hom.ker) :
+  (x : add_monoid_algebra (K s) (K s)) (x0 : x ≠ 0) (x_ker : x ∈ (Eval s).to_ring_hom.ker) :
   ∃ (w : ℤ) (q : finset (K s)) (w' : q → ℤ),
-    (w + ∑ x : q, w' x * ∑ f : (Gal s),
+    (w + ∑ x : q, w' x * ∑ f : Gal s,
       exp (algebra_map (K s) ℂ (f x)) : ℂ) = 0 := by
-{ 
-  let v : ∏ f : Gal s,
+{ let U := ∏ f : Gal s, add_monoid_algebra.alg_aut_congr_left f x,
+  have hU : ∀ f : Gal s, add_monoid_algebra.alg_aut_congr_left f U = U,
+  { intros f, dsimp only [U],
+    simp_rw [map_prod, ← alg_equiv.trans_apply, ← alg_equiv.aut_mul, ← map_mul],
+    exact (group.mul_left_bijective f).prod_comp
+      (λ g, (add_monoid_algebra.alg_aut_congr_left g) x), },
+  have U_mem : ∀ i : K s, U i ∈ intermediate_field.fixed_field (⊤ : subgroup (K s ≃ₐ[ℚ] K s)),
+  { intros i, dsimp [intermediate_field.fixed_field, fixed_points.intermediate_field],
+    rintros ⟨f, hf⟩, rw [subgroup.smul_def, subgroup.coe_mk],
+    replace hU : (add_monoid_algebra.alg_aut_congr_left f) U i = U i, { rw [hU f], },
+    rwa [add_monoid_algebra.alg_aut_congr_left_apply,
+      add_monoid_algebra.alg_equiv_congr_left_apply, finsupp.map_range_apply] at hU, },
+  replace U_mem : ∀ i : K s, U i ∈ (⊥ : intermediate_field ℚ (K s)),
+  { intros i, specialize U_mem i,
+    rwa [((@is_galois.tfae ℚ _ (K s) _ _ _).out 0 1).mp infer_instance] at U_mem, },
+  have U_ker : U ∈ (Eval s).to_ring_hom.ker,
+  { dsimp only [U],
+    suffices : (λ f, (add_monoid_algebra.alg_aut_congr_left f) x) 1 *
+      ∏ (f : Gal s) in univ.erase 1, (add_monoid_algebra.alg_aut_congr_left f) x ∈
+      (Eval s).to_ring_hom.ker,
+    { rwa [mul_prod_erase (univ : finset (Gal s)) _ (mem_univ _)] at this, },
+    dsimp only [add_monoid_algebra.alg_aut_congr_left_apply,
+      add_monoid_algebra.alg_equiv_congr_left_apply],
+    change finsupp.map_range id rfl _ * _ ∈ _,
+    rw [finsupp.map_range_id], exact ideal.mul_mem_right _ _ x_ker, },
   
+  -- simp_rw [is_galois.tfae  : _ = ⊥] at U_mem,
 }
 
 #check add_monoid_algebra.map_domain_alg_hom
-#check finsupp.map_domain
-#check alg_equiv.of_alg
+#check finsupp.equiv_congr_left
+#check finsupp.map_range_apply
 
 lemma linear_independent_exp_aux
   (u : ι → ℂ) (hu : ∀ i, is_integral ℚ (u i)) (u_inj : function.injective u)
@@ -1051,7 +1096,7 @@ lemma linear_independent_exp'' (s : finset ℂ) (hs : ∀ x ∈ s, is_algebraic 
   rw [fintype.linear_independent_iff] at this,
   have h' : ∑ (x : s), (⟨g x.1, hg' x.1 x.2⟩ : integral_closure ℚ ℂ) • exp ↑x = 0,
   { simp_rw [subalgebra.smul_def, subtype.coe_mk, subtype.val_eq_coe],
-    convert_to ∑ (x : s), (λ (x : ℂ), g x * exp x) ↑x = 0,
+    change ∑ (x : s), (λ (x : ℂ), g x * exp x) ↑x = 0,
     rwa [sum_coe_sort], },
   intros x hx,
   specialize this (λ (x : s), ⟨g x.1, hg' x.1 x.2⟩) h' ⟨x, hx⟩,
