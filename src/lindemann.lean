@@ -4,8 +4,6 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Yuyang Zhao
 -/
 import data.complex.exponential
-import data.polynomial.basic
-import data.polynomial.taylor
 import data.polynomial.iterated_deriv
 import ring_theory.algebraic
 import measure_theory.integral.set_integral
@@ -13,7 +11,6 @@ import measure_theory.integral.interval_integral
 import analysis.complex.basic
 import analysis.special_functions.polynomials
 import field_theory.polynomial_galois_group
-import algebra.monoid_algebra.to_direct_sum
 
 namespace euclidean_domain
 variables {R : Type*} [euclidean_domain R]
@@ -872,24 +869,6 @@ def is_domain
   .. (infer_instance : nontrivial (add_monoid_algebra R M)), }
 -/
 end add_monoid_algebra
-/-
-theorem eq_zero_or_eq_zero_of_mul_eq_zero
-  {R : Type*} [comm_ring R] [is_domain R] {σ : Type*}
-  (p q : mv_polynomial σ R) (h : p * q = 0) : p = 0 ∨ q = 0 :=
-begin
-  obtain ⟨s, p, rfl⟩ := mv_polynomial.exists_finset_rename p,
-  obtain ⟨t, q, rfl⟩ := mv_polynomial.exists_finset_rename q,
-  have :
-    mv_polynomial.rename (subtype.map id (finset.subset_union_left s t) : {x // x ∈ s} → {x // x ∈ s ∪ t}) p *
-    mv_polynomial.rename (subtype.map id (finset.subset_union_right s t) : {x // x ∈ t} → {x // x ∈ s ∪ t}) q = 0,
-  { apply mv_polynomial.rename_injective _ subtype.val_injective,
-    simpa only [map_mul, map_zero, mv_polynomial.rename_rename, mul_eq_zero] using h, },
-  letI := mv_polynomial.is_domain_fintype R {x // x ∈ (s ∪ t)},
-  rw mul_eq_zero at this,
-  cases this; [left, right],
-  all_goals { simpa using congr_arg (rename subtype.val) this }
-end
--/
 .
 
 section
@@ -945,12 +924,176 @@ lemma Eval_apply (x : add_monoid_algebra (K s) (K s)) :
 lemma Poly_ne_zero (hs : ∀ x ∈ s, is_integral ℚ x) : Poly s ≠ 0 :=
 prod_ne_zero_iff.mpr (λ x hx, minpoly.ne_zero (hs x hx))
 
-section
-variables {ι : Type*} [fintype ι]
+noncomputable!
+def rat_coeff : subalgebra ℚ (add_monoid_algebra (K s) (K s)) :=
+{ carrier := λ x, ∀ i : K s, x i ∈ (⊥ : intermediate_field ℚ (K s)),
+  mul_mem' := λ a b ha hb i,
+  begin
+    rw [add_monoid_algebra.mul_apply],
+    refine sum_mem (λ c hc, sum_mem (λ d hd, _)),
+    dsimp only, split_ifs, exacts [mul_mem (ha c) (hb d), zero_mem _],
+  end,
+  add_mem' := λ a b ha hb i, by { rw [finsupp.add_apply], exact add_mem (ha i) (hb i), },
+  algebra_map_mem' := λ r hr,
+  begin
+    rw [add_monoid_algebra.coe_algebra_map, function.comp_app, finsupp.single_apply],
+    split_ifs, exacts [intermediate_field.algebra_map_mem _ _, zero_mem _],
+  end }
 
-abbreviation Range (u : ι → ℂ) (v : ι → ℂ) : finset ℂ := univ.image u ∪ univ.image v
+noncomputable!
+def map_domain_fixed : subalgebra (K s) (add_monoid_algebra (K s) (K s)) :=
+{ carrier := λ x, ∀ f : Gal s, add_monoid_algebra.map_domain_alg_aut ℚ _ f.to_add_equiv x = x,
+  mul_mem' := λ a b ha hb f, by rw [map_mul, ha, hb],
+  add_mem' := λ a b ha hb f, by rw [map_add, ha, hb],
+  algebra_map_mem' := λ r f,
+  begin
+    change finsupp.equiv_map_domain f.to_equiv (finsupp.single _ _) = finsupp.single _ _,
+    rw [finsupp.equiv_map_domain_single],
+    change finsupp.single (f 0) _ = _, rw [alg_equiv.map_zero],
+  end }
 
-lemma linear_independent_exp_aux' (s : finset ℂ)
+lemma mem_map_domain_fixed_iff (x : add_monoid_algebra (K s) (K s)) :
+  x ∈ map_domain_fixed s ↔ (∀ i j, i ∈ mul_action.orbit (Gal s) j → x i = x j) :=
+begin
+  simp_rw [mul_action.mem_orbit_iff],
+  change (∀ (f : Gal s), finsupp.equiv_map_domain ↑(alg_equiv.to_add_equiv f) x = x) ↔ _,
+  refine ⟨λ h i j hij, _, λ h f, _⟩,
+  { obtain ⟨f, rfl⟩ := hij,
+    rw [alg_equiv.smul_def, ← finsupp.congr_fun (h f) (f j)],
+    change x (f.symm (f j)) = _, rw [alg_equiv.symm_apply_apply], },
+  { ext i, change x (f.symm i) = x i,
+    refine (h i ((alg_equiv.symm f) i) ⟨f, _⟩).symm,
+    rw [alg_equiv.smul_def, alg_equiv.apply_symm_apply], }
+end
+
+noncomputable!
+def map_domain_fixed_equiv_subtype :
+  map_domain_fixed s ≃
+    {f : add_monoid_algebra (K s) (K s) // (mul_action.orbit_rel (Gal s) (K s)) ≤ setoid.ker f} :=
+{ to_fun := λ f, ⟨f, (mem_map_domain_fixed_iff s f).mp f.2⟩,
+  inv_fun := λ f, ⟨f, (mem_map_domain_fixed_iff s f).mpr f.2⟩,
+  left_inv := λ f, by simp_rw [← subtype.coe_inj, subtype.coe_mk],
+  right_inv := λ f, by simp_rw [← subtype.coe_inj, subtype.coe_mk], }
+
+namespace quot
+
+attribute [reducible, elab_as_eliminator]
+protected def lift_finsupp {α : Type*} {r : α → α → Prop} {β : Type*} [has_zero β]
+  (f : α →₀ β) (h : ∀ a b, r a b → f a = f b) : quot r →₀ β := by
+{ refine ⟨finset.image (mk r) f.support, quot.lift f h, λ a, ⟨_, a.ind (λ b, _)⟩⟩,
+  { rw [mem_image], rintros ⟨b, hb, rfl⟩, exact finsupp.mem_support_iff.mp hb, },
+  { rw [lift_mk _ h], refine λ hb, mem_image_of_mem _ (finsupp.mem_support_iff.mpr hb), }, }
+
+end quot
+
+namespace quotient
+
+attribute [reducible, elab_as_eliminator]
+protected def lift_finsupp {α : Type*} {β : Type*} [s : setoid α] [has_zero β] (f : α →₀ β) :
+  (∀ a b, a ≈ b → f a = f b) → quotient s →₀ β :=
+quot.lift_finsupp f
+
+end quotient
+
+namespace mul_action
+
+@[to_additive]
+instance (α : Type*) {β : Type*} [monoid α] [fintype α] [mul_action α β] (b : β) :
+  fintype (orbit α b) := set.fintype_range _
+
+@[to_additive]
+instance (α : Type*) {β : Type*} [group α] [fintype α] [mul_action α β]
+  (x : mul_action.orbit_rel.quotient α β) :
+  fintype x.orbit :=
+by { rw [x.orbit_eq_orbit_out quotient.out_eq'], apply_instance, }
+
+end mul_action
+
+instance is_conj.setoid' := mul_action.orbit_rel (Gal s) (K s)
+abbreviation conj_classes' := mul_action.orbit_rel.quotient (Gal s) (K s)
+
+noncomputable!
+def sum_conj_equiv : map_domain_fixed s ≃ (conj_classes' s →₀ K s) :=
+begin
+  refine (map_domain_fixed_equiv_subtype s).trans _,
+  refine
+  { to_fun := λ f, quotient.lift_finsupp (f : add_monoid_algebra (K s) (K s)) f.2,
+    inv_fun := λ f, ⟨_, _⟩,
+    left_inv := _,
+    right_inv := _, },
+  { refine ⟨f.support.bUnion (λ i, i.orbit.to_finset), λ x, f (quotient.mk' x), λ i, _⟩,
+    simp_rw [mem_bUnion, set.mem_to_finset, mul_action.orbit_rel.quotient.mem_orbit,
+      finsupp.mem_support_iff, exists_prop, exists_eq_right'], },
+  { change ∀ i j, i ∈ mul_action.orbit (Gal s) j → f (quotient.mk' i) = f (quotient.mk' j),
+    exact λ i j h, congr_arg f (quotient.sound' h), },
+  { exact λ _, subtype.eq $ finsupp.ext $ λ x, rfl, },
+  { refine λ f, finsupp.ext $ λ x, quotient.induction_on' x $ λ i, rfl, }
+end
+
+lemma sum_conj_equiv_apply (f : map_domain_fixed s) :
+  sum_conj_equiv s f = quotient.lift_finsupp (f : add_monoid_algebra (K s) (K s))
+    ((mem_map_domain_fixed_iff s f).mp f.2) := rfl
+
+@[simp]
+lemma sum_conj_equiv_apply_apply_mk (f : map_domain_fixed s) (i : K s) :
+  sum_conj_equiv s f (quotient.mk i) = f i := rfl
+
+@[simp]
+lemma sum_conj_equiv_apply_apply_mk' (f : map_domain_fixed s) (i : K s) :
+  sum_conj_equiv s f (quotient.mk' i) = f i := rfl
+
+@[simp]
+lemma sum_conj_equiv_symm_apply_apply (f : conj_classes' s →₀ K s) (i : K s) :
+  (sum_conj_equiv s).symm f i = f (quotient.mk i) := rfl
+
+@[simp]
+lemma sum_conj_equiv_symm_apply_apply' (f : conj_classes' s →₀ K s) (i : K s) :
+  (sum_conj_equiv s).symm f i = f (quotient.mk' i) := rfl
+
+@[simp]
+lemma sum_conj_equiv_apply_apply (f : map_domain_fixed s) (i : conj_classes' s) :
+  sum_conj_equiv s f i = f i.out :=
+by rw [← quotient.out_eq i, sum_conj_equiv_apply_apply_mk, quotient.out_eq]
+
+@[simps]
+noncomputable!
+def sum_conj_add_equiv : map_domain_fixed s ≃+ (conj_classes' s →₀ K s) :=
+{ map_add' := λ x y, by { ext i, simp_rw [equiv.to_fun_as_coe, finsupp.coe_add, pi.add_apply,
+    sum_conj_equiv_apply_apply], refl, }
+  ..sum_conj_equiv s, }
+
+lemma linear_independent_exp_aux3 (s : finset ℂ)
+  (x : add_monoid_algebra (K s) (K s)) (x0 : x ≠ 0) (x_ker : x ∈ (Eval s).to_ring_hom.ker)
+  (x_mem : x ∈ rat_coeff s) :
+  ∃ (w : ℤ) (q : finset (K s)) (w' : q → ℤ),
+    (w + ∑ x : q, w' x * ∑ f : Gal s,
+      exp (algebra_map (K s) ℂ (f x)) : ℂ) = 0 := by
+{ let V := ∏ f : Gal s, add_monoid_algebra.map_domain_alg_aut ℚ _ f.to_add_equiv x,
+  have hV : ∀ f : Gal s, add_monoid_algebra.map_domain_alg_aut ℚ _ f.to_add_equiv V = V,
+  { intros f, dsimp only [V],
+    rw [map_prod], simp_rw [← alg_equiv.trans_apply, ← alg_equiv.aut_mul, ← map_mul],
+    exact (group.mul_left_bijective f).prod_comp
+      (λ g, add_monoid_algebra.map_domain_alg_aut ℚ _ g.to_add_equiv x), },
+  have V_ker : V ∈ (Eval s).to_ring_hom.ker,
+  { dsimp only [V],
+    suffices : (λ f : Gal s, (add_monoid_algebra.map_domain_alg_aut ℚ _ f.to_add_equiv) x) 1 *
+      ∏ (f : Gal s) in univ.erase 1,
+        add_monoid_algebra.map_domain_alg_aut ℚ _ f.to_add_equiv x ∈ (Eval s).to_ring_hom.ker,
+    { rwa [mul_prod_erase (univ : finset (Gal s)) _ (mem_univ _)] at this, },
+    change (finsupp.equiv_map_domain (equiv.refl _) x * _ : add_monoid_algebra (K s) (K s)) ∈ _,
+    rw [finsupp.equiv_map_domain_refl], exact ideal.mul_mem_right _ _ x_ker, },
+  have V_mem : V ∈ rat_coeff s,
+  { dsimp only [V], refine subalgebra.prod_mem _ (λ f hf, _),
+    intros i, change finsupp.equiv_map_domain f.to_equiv x i ∈ _,
+    rw [finsupp.equiv_map_domain_apply], exact x_mem _, },
+  have : fintype.card (Gal s) • V =
+    ∑ f : Gal s, add_monoid_algebra.map_domain_alg_aut ℚ _ f.to_add_equiv V,
+  { simp_rw [hV, sum_const, card_univ], },
+  
+}
+/-
+  replace hV : V ∈ map_domain_fixed s := hV,-/
+lemma linear_independent_exp_aux2 (s : finset ℂ)
   (x : add_monoid_algebra (K s) (K s)) (x0 : x ≠ 0) (x_ker : x ∈ (Eval s).to_ring_hom.ker) :
   ∃ (w : ℤ) (q : finset (K s)) (w' : q → ℤ),
     (w + ∑ x : q, w' x * ∑ f : Gal s,
@@ -960,35 +1103,38 @@ lemma linear_independent_exp_aux' (s : finset ℂ)
   { intros f, dsimp only [U],
     simp_rw [map_prod, ← alg_equiv.trans_apply, ← alg_equiv.aut_mul, ← map_mul],
     exact (group.mul_left_bijective f).prod_comp
-      (λ g, (add_monoid_algebra.alg_aut_congr_left g) x), },
+      (λ g, add_monoid_algebra.alg_aut_congr_left g x), },
+  have U0 : U ≠ 0,
+  { dsimp only [U], rw [prod_ne_zero_iff], intros f hf,
+    rwa [add_equiv_class.map_ne_zero_iff], },
+  have U_ker : U ∈ (Eval s).to_ring_hom.ker,
+  { dsimp only [U],
+    suffices : (λ f : Gal s, (add_monoid_algebra.alg_aut_congr_left f) x) 1 *
+      ∏ (f : Gal s) in univ.erase 1,
+        (add_monoid_algebra.alg_aut_congr_left f) x ∈ (Eval s).to_ring_hom.ker,
+    { rwa [mul_prod_erase (univ : finset (Gal s)) _ (mem_univ _)] at this, },
+    change finsupp.map_range id rfl _ * _ ∈ _,
+    rw [finsupp.map_range_id], exact ideal.mul_mem_right _ _ x_ker, },
   have U_mem : ∀ i : K s, U i ∈ intermediate_field.fixed_field (⊤ : subgroup (K s ≃ₐ[ℚ] K s)),
   { intros i, dsimp [intermediate_field.fixed_field, fixed_points.intermediate_field],
     rintros ⟨f, hf⟩, rw [subgroup.smul_def, subgroup.coe_mk],
     replace hU : (add_monoid_algebra.alg_aut_congr_left f) U i = U i, { rw [hU f], },
     rwa [add_monoid_algebra.alg_aut_congr_left_apply,
       add_monoid_algebra.alg_equiv_congr_left_apply, finsupp.map_range_apply] at hU, },
-  replace U_mem : ∀ i : K s, U i ∈ (⊥ : intermediate_field ℚ (K s)),
+  replace U_mem : U ∈ rat_coeff s,
   { intros i, specialize U_mem i,
     rwa [((@is_galois.tfae ℚ _ (K s) _ _ _).out 0 1).mp infer_instance] at U_mem, },
-  have U_ker : U ∈ (Eval s).to_ring_hom.ker,
-  { dsimp only [U],
-    suffices : (λ f, (add_monoid_algebra.alg_aut_congr_left f) x) 1 *
-      ∏ (f : Gal s) in univ.erase 1, (add_monoid_algebra.alg_aut_congr_left f) x ∈
-      (Eval s).to_ring_hom.ker,
-    { rwa [mul_prod_erase (univ : finset (Gal s)) _ (mem_univ _)] at this, },
-    dsimp only [add_monoid_algebra.alg_aut_congr_left_apply,
-      add_monoid_algebra.alg_equiv_congr_left_apply],
-    change finsupp.map_range id rfl _ * _ ∈ _,
-    rw [finsupp.map_range_id], exact ideal.mul_mem_right _ _ x_ker, },
-  
-  -- simp_rw [is_galois.tfae  : _ = ⊥] at U_mem,
-}
+  exact linear_independent_exp_aux3 s U U0 U_ker U_mem, }
 
-#check add_monoid_algebra.map_domain_alg_hom
+#check prod_induction_nonempty
 #check finsupp.equiv_congr_left
 #check finsupp.map_range_apply
 
-lemma linear_independent_exp_aux
+variables {ι : Type*} [fintype ι]
+
+abbreviation Range (u : ι → ℂ) (v : ι → ℂ) : finset ℂ := univ.image u ∪ univ.image v
+
+lemma linear_independent_exp_aux1
   (u : ι → ℂ) (hu : ∀ i, is_integral ℚ (u i)) (u_inj : function.injective u)
   (v : ι → ℂ) (hv : ∀ i, is_integral ℚ (v i)) (v0 : v ≠ 0)
   (h : ∑ i, v i * exp (u i) = 0) :
@@ -1013,48 +1159,38 @@ lemma linear_independent_exp_aux
     apply intermediate_field.subset_adjoin,
     rw [mem_root_set (Poly_ne_zero s hs), map_prod, prod_eq_zero_iff],
     exact ⟨v i, mem_union_right _ (finset.mem_image.mpr ⟨i, mem_univ _, rfl⟩), minpoly.aeval _ _⟩, },
-  let ι' : set ι := {i | v i ≠ 0},
-  let u' : ∀ i, K s := λ i : ι', Lift s ⟨u i, u_mem i⟩,
-  let v' : ∀ i, K s := λ i : ι', Lift s ⟨v i, v_mem i⟩,
+  let u' : ∀ i, K s := λ i : ι, Lift s ⟨u i, u_mem i⟩,
+  let v' : ∀ i, K s := λ i : ι, Lift s ⟨v i, v_mem i⟩,
   have u'_inj : function.injective u' :=
-    λ i j hij, subtype.coe_injective (u_inj (subtype.mk.inj ((Lift s).injective hij))),
-  have v'_ne_zero : ∀ i, v' i ≠ 0 := λ i, by
-  { rw [ne.def, add_equiv_class.map_eq_zero_iff, ← add_submonoid_class.coe_eq_zero, subtype.coe_mk],
-    exact i.2, },
+    λ i j hij, u_inj (subtype.mk.inj ((Lift s).injective hij)),
   replace h : ∑ i, (algebra_map (K s) ℂ (v' i)) * exp (algebra_map (K s) ℂ (u' i)) = 0,
   { simp_rw [algebra_map_K_apply, alg_equiv.symm_apply_apply, ← h],
-    symmetry, apply sum_congr_set,
-    { intros x hx, refl, },
-    intros x hx,
-    rw [set.mem_set_of_eq, not_not] at hx,
-    rw [hx, zero_mul], },
+    symmetry, apply sum_congr rfl,
+    intros x hx, refl, },
   
-  let f : add_monoid_algebra (K s) (K s) :=
-  { support := image u' univ,
-    to_fun := λ x, if hx : x ∈ image u' univ
-      then v' (u'_inj.inv_of_mem_range ⟨x, mem_image_univ_iff_mem_range.mp hx⟩) else 0,
-    mem_support_to_fun := λ x, ⟨λ hx, by { rw [dif_pos hx], exact v'_ne_zero _, },
-                                by { contrapose!, intros hx, rw [dif_neg hx], }⟩ },
-  have f_apply : ∀ x (hx : x ∈ image u' univ),
-    f x = v' (u'_inj.inv_of_mem_range ⟨x, mem_image_univ_iff_mem_range.mp hx⟩),
-  { intros x hx, rw [finsupp.coe_mk, dif_pos hx], },
+  let f : add_monoid_algebra (K s) (K s) := finsupp.on_finset (image u' univ)
+    (λ x, if hx : x ∈ image u' univ
+      then v' (u'_inj.inv_of_mem_range ⟨x, mem_image_univ_iff_mem_range.mp hx⟩) else 0)
+    (λ x, by { contrapose!, intros hx, rw [dif_neg hx], }),
   replace hf : Eval s f = 0,
-  { rw [Eval_apply, ← h, finsupp.sum, (_ : f.support = image u' univ)], swap, { refl, },
+  { rw [Eval_apply, ← h, finsupp.on_finset_sum _ (λ a, _)], swap, { rw [zero_smul], },
     rw [sum_image, sum_congr rfl], swap, { exact λ i hi j hj hij, u'_inj hij, },
     intros x hx,
-    rw [f_apply, u'_inj.right_inv_of_inv_of_mem_range], { refl },
+    rw [dif_pos, u'_inj.right_inv_of_inv_of_mem_range], { refl },
     exact mem_image_of_mem _ (mem_univ _), },
   have f0 : f ≠ 0,
   { rw [ne.def, function.funext_iff] at v0, push_neg at v0,
     cases v0 with i hi,
     rw [pi.zero_apply] at hi,
-    have h : f (u' ⟨i, hi⟩) ≠ 0,
-    { rw [f_apply], exact v'_ne_zero _, exact mem_image_of_mem _ (mem_univ _), },
+    have h : f (u' i) ≠ 0,
+    { rwa [finsupp.on_finset_apply, dif_pos, u'_inj.right_inv_of_inv_of_mem_range, ne.def,
+        add_equiv_class.map_eq_zero_iff, ← add_submonoid_class.coe_eq_zero],
+      exact mem_image_of_mem _ (mem_univ _), },
     intros f0,
     rw [f0, finsupp.zero_apply] at h,
     exact absurd rfl h, },
   rw [← alg_hom.coe_to_ring_hom, ← ring_hom.mem_ker] at hf,
-  exact linear_independent_exp_aux' s f f0 hf, }
+  exact linear_independent_exp_aux2 s f f0 hf, }
 
 #check ring_hom.field_range
 #check lift_of_splits s
