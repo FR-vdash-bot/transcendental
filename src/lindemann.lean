@@ -1057,9 +1057,11 @@ by rw [← quotient.out_eq i, sum_conj_equiv_apply_apply_mk, quotient.out_eq]
 
 @[simps]
 noncomputable!
-def sum_conj_add_equiv : map_domain_fixed s ≃+ (conj_classes' s →₀ K s) :=
+def sum_conj_linear_equiv : map_domain_fixed s ≃ₗ[K s] (conj_classes' s →₀ K s) :=
 { map_add' := λ x y, by { ext i, simp_rw [equiv.to_fun_as_coe, finsupp.coe_add, pi.add_apply,
-    sum_conj_equiv_apply_apply], refl, }
+    sum_conj_equiv_apply_apply], refl, },
+  map_smul' := λ r x, by { ext i, simp_rw [equiv.to_fun_as_coe, finsupp.coe_smul, pi.smul_apply,
+    sum_conj_equiv_apply_apply], refl, },
   ..sum_conj_equiv s, }
 
 lemma linear_independent_exp_aux3 (s : finset ℂ)
