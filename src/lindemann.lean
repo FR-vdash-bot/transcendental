@@ -927,10 +927,6 @@ begin
   { refine λ f, finsupp.ext $ λ x, quotient.induction_on' x $ λ i, rfl, }
 end
 
-lemma to_conj_equiv_apply (f : map_domain_fixed s) :
-  to_conj_equiv s f = quotient.lift_finsupp (f : add_monoid_algebra (K s) (K s))
-    ((mem_map_domain_fixed_iff s f).mp f.2) := rfl
-
 @[simp]
 lemma to_conj_equiv_apply_apply_mk (f : map_domain_fixed s) (i : K s) :
   to_conj_equiv s f (quotient.mk i) = f i := rfl
@@ -957,15 +953,22 @@ lemma to_conj_equiv_apply_zero_eq (f : map_domain_fixed s) :
   to_conj_equiv s f 0 = f 0 :=
 by rw [to_conj_equiv_apply_apply, conj_classes'.zero_out]
 
+@[simp]
+lemma to_conj_equiv_symm_apply_zero_eq (f : conj_classes' s →₀ K s) :
+  (to_conj_equiv s).symm f 0 = f 0 :=
+by { rw [to_conj_equiv_symm_apply_apply], refl, }
+
 @[simps]
 def to_conj_linear_equiv : map_domain_fixed s ≃ₗ[K s] (conj_classes' s →₀ K s) :=
-{ map_add' := λ x y, by { ext i, simp_rw [equiv.to_fun_as_coe, finsupp.coe_add, pi.add_apply,
+{ to_fun := to_conj_equiv s,
+  inv_fun := (to_conj_equiv s).symm,
+  map_add' := λ x y, by { ext i, simp_rw [finsupp.coe_add, pi.add_apply,
     to_conj_equiv_apply_apply], refl, },
-  map_smul' := λ r x, by { ext i, simp_rw [equiv.to_fun_as_coe, finsupp.coe_smul, pi.smul_apply,
+  map_smul' := λ r x, by { ext i, simp_rw [finsupp.coe_smul, pi.smul_apply,
     to_conj_equiv_apply_apply], refl, },
   ..to_conj_equiv s, }
 
-namespace map_domain_fixed
+namespace finsupp.conj_classes'
 
 instance : comm_ring (conj_classes' s →₀ K s) :=
 { zero := 0,
@@ -1017,19 +1020,16 @@ begin
   rw [one_eq_single, finsupp.smul_single, smul_eq_mul, mul_one],
 end
 
-lemma single_prod_apply_zero_ne_zero_iff (x : conj_classes' s) {a : K s} (ha : a ≠ 0)
-  (y : conj_classes' s) {b : K s} (hb : b ≠ 0) :
-  (finsupp.single x a * finsupp.single y b) 0 ≠ 0 ↔ x = -y := by {  }
-
-end map_domain_fixed
+end finsupp.conj_classes'
 
 @[simps]
 def to_conj_alg_equiv : map_domain_fixed s ≃ₐ[K s] (conj_classes' s →₀ K s) :=
-{ map_mul' := λ x y, by simp_rw [linear_equiv.to_fun_eq_coe, map_domain_fixed.mul_def,
-    linear_equiv.symm_apply_apply],
+{ to_fun := to_conj_linear_equiv s,
+  inv_fun := (to_conj_linear_equiv s).symm,
+  map_mul' := λ x y, by simp_rw [finsupp.conj_classes'.mul_def, linear_equiv.symm_apply_apply],
   commutes' := λ r,
   begin
-    simp_rw [map_domain_fixed.algebra_map_eq_single],
+    simp_rw [finsupp.conj_classes'.algebra_map_eq_single],
     change (to_conj_equiv s) (algebra_map (K s) (map_domain_fixed s) r) = _,
     ext i, rw [to_conj_equiv_apply_apply],
     change finsupp.single 0 r (quotient.out i) = finsupp.single 0 r i,
@@ -1038,6 +1038,58 @@ def to_conj_alg_equiv : map_domain_fixed s ≃ₐ[K s] (conj_classes' s →₀ K
     simp_rw [@eq_comm _ _ i.out, @eq_comm _ _ i, conj_classes'.out_eq_zero_iff],
   end,
   ..to_conj_linear_equiv s, }
+
+def finsupp.const_on {α β : Type*} [has_zero β] (s : finset α) (x : β) : α →₀ β :=
+{ support := if x = 0 then ∅ else s,
+  to_fun := λ i, if i ∈ s then x else 0,
+  mem_support_to_fun := λ a,
+  begin
+    rcases eq_or_ne x 0 with rfl | x0,
+    all_goals { rw [if_pos rfl] <|> rw [if_neg (λ h, x0 h)], split_ifs, },
+    { exact ⟨false.elim, λ H, H rfl⟩, },
+    { exact ⟨false.elim, λ H, H rfl⟩, },
+    { exact ⟨λ _, x0, λ _, h⟩, },
+    { exact ⟨λ H, absurd H h, λ x, absurd rfl x⟩, },
+  end }
+
+lemma finsupp.const_on_apply {α β : Type*} [has_zero β] (s : finset α) (x : β) (i : α) :
+  finsupp.const_on s x i = if i ∈ s then x else 0 := rfl
+
+lemma to_conj_equiv_symm_single.aux (x : conj_classes' s) (a : K s) :
+  finsupp.const_on x.orbit.to_finset a ∈ map_domain_fixed s :=
+begin
+  rw [mem_map_domain_fixed_iff],
+  rintros i j h,
+  simp_rw [finsupp.const_on_apply, set.mem_to_finset], congr' 1,
+  simp_rw [mul_action.orbit_rel.quotient.mem_orbit],
+  suffices : quotient.mk' i = quotient.mk' j, { rw [this], },
+  rwa [quotient.eq'],
+end
+
+--∑ i in x.orbit.to_finset, finsupp.single i a
+
+lemma to_conj_equiv_symm_single (x : conj_classes' s) (a : K s) :
+  (to_conj_equiv s).symm (finsupp.single x a) =
+    ⟨finsupp.const_on x.orbit.to_finset a, to_conj_equiv_symm_single.aux s x a⟩ :=
+begin
+  rw [equiv.symm_apply_eq],
+  ext i, rw [to_conj_equiv_apply_apply],
+  change finsupp.single x a i =
+    finsupp.const_on (mul_action.orbit_rel.quotient.orbit x).to_finset a (quotient.out i),
+  rw [finsupp.single_apply, finsupp.const_on_apply], congr' 1,
+  rw [set.mem_to_finset, mul_action.orbit_rel.quotient.mem_orbit, quotient.mk'_eq_mk,
+    quotient.out_eq, @eq_comm _ i],
+end
+
+lemma single_prod_apply_zero_ne_zero_iff (x : conj_classes' s) {a : K s} (ha : a ≠ 0)
+  (y : conj_classes' s) {b : K s} (hb : b ≠ 0) :
+  (finsupp.single x a * finsupp.single y b) 0 ≠ 0 ↔ x = -y :=
+begin
+  simp_rw [finsupp.conj_classes'.mul_def, to_conj_linear_equiv_apply,
+    to_conj_linear_equiv_symm_apply, to_conj_equiv_apply_zero_eq],
+  simp_rw [to_conj_equiv_symm_single],
+  
+end
 
 lemma linear_independent_exp_aux3 (s : finset ℂ)
   (x : add_monoid_algebra (K s) (K s)) (x0 : x ≠ 0) (x_ker : x ∈ (Eval s).to_ring_hom.ker)
