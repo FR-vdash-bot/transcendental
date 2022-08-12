@@ -12,16 +12,6 @@ import analysis.complex.basic
 import analysis.special_functions.polynomials
 import field_theory.polynomial_galois_group
 
-namespace euclidean_domain
-variables {R : Type*} [euclidean_domain R]
-
-lemma pow_sub {a : R} (a0 : a ≠ 0) {m n : ℕ} (hmn : n ≤ m) : a ^ (m - n) = a ^ m / a ^ n := by
-{ have : a ^ n * a ^ (m - n) = a ^ n * a ^ m / a ^ n,
-  { rw [← pow_add, add_tsub_cancel_of_le hmn, mul_div_cancel_left], exact pow_ne_zero _ a0, },
-  rwa [mul_div_assoc _ (pow_dvd_pow a hmn), mul_right_inj'] at this, exact pow_ne_zero _ a0, }
-
-end euclidean_domain
-
 noncomputable theory
 
 open_locale big_operators polynomial classical
@@ -36,10 +26,6 @@ lemma desc_factorial_eq_prod_range (n : ℕ) :
 
 end nat
 
-@[simp] lemma map_ite {A B : Type*} (f : A → B) (P : Prop) [decidable P] (a b : A) :
-  f (if P then a else b) = if P then f a else f b :=
-by split_ifs; refl
-
 namespace polynomial
 
 section
@@ -52,19 +38,6 @@ begin
   split, swap, { intro h, rw [h, polynomial.map_zero], },
   rw [← polynomial.map_zero f],
   exact λ h, polynomial.map_injective _ hf h,
-end
-
-lemma map_ne_zero_of_injective
-  (f : R →+* S) (hf : function.injective f) {p : R[X]} :
-  p.map f ≠ 0 ↔ p ≠ 0 :=
-not_iff_not_of_iff (map_eq_zero_of_injective f hf)
-
-lemma support_map_subset' [semiring R] [semiring S] (f : R →+* S) (p : R[X]) :
-  (map f p).support ⊆ p.support :=
-begin
-  intros x,
-  contrapose!,
-  simp { contextual := tt },
 end
 
 end
@@ -578,119 +551,6 @@ variables {ι : Type*} [fintype ι]
   (t0 : ∀ i, t i ≠ 0)
   (ht : ∀ i j, i ≠ j →
     multiset.disjoint ((t i).map (algebra_map ℤ ℂ)).roots ((t j).map (algebra_map ℤ ℂ)).roots)-/
-
-lemma sum_P_eq (hct : ∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map exp).sum = 0) (p : ℂ[X]) :
-  ∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (P p)).sum =
-  -∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (λ x, p.sum_ideriv.eval x)).sum :=
-by simp_rw [P, multiset.sum_map_sub, smul_sub, sum_sub_distrib, multiset.sum_map_mul_right,
-  ← smul_mul_assoc, ← sum_mul, hct, zero_mul, zero_sub]
-
-def F (q : ℕ) (p : ℤ[X]) (p' : ℂ[X]) : ℂ[X] :=
-p.map (algebra_map ℤ ℂ) ^ (q - 1) * p'
-
-namespace polynomial
-
-def erase_root (p : ℤ[X]) (r : ℂ) : ℂ[X] :=
-(((p.map (algebra_map ℤ ℂ)).roots.erase r).map (λ x, X - C x)).prod
-
-lemma eval_erase_root_mem (p : ℤ[X]) (r : ℂ)
-  (x : ℂ) (hx : x ∈ (p.map (algebra_map ℤ ℂ)).roots.erase r) :
-  (p.erase_root r).eval x = 0 := by
-by rw [erase_root, ← multiset.prod_map_erase _ hx, mul_comm, eval_mul_X_sub_C]
-
-end polynomial
-
-lemma F_eq (q : ℕ) (p : ℤ[X]) (p' : ℂ[X]) :
-  F q p p' = C ((p.map (algebra_map ℤ ℂ)).leading_coeff ^ (q - 1)) *
-    ((p.map (algebra_map ℤ ℂ)).roots.map (λ x, (X - C x) ^ (q - 1))).prod * p' := by
-{ rw [F, multiset.prod_map_pow, C_pow, ← mul_pow],
-  have : (p.map (algebra_map ℤ ℂ)).roots.card = (p.map (algebra_map ℤ ℂ)).nat_degree :=
-    splits_iff_card_roots.mp (is_alg_closed.splits _),
-  rw [C_leading_coeff_mul_prod_multiset_X_sub_C this], }
-
-lemma eval_root_derivative (p : ℂ[X]) {r : ℂ} (hr : r ∈ p.roots) :
-  p.derivative.eval r = p.leading_coeff * ((p.roots.erase r).map (λ x, r - x)).prod := by
-{ have : p.roots.card = p.nat_degree :=
-    splits_iff_card_roots.mp (is_alg_closed.splits _),
-  conv_lhs { rw [← C_leading_coeff_mul_prod_multiset_X_sub_C this], },
-  simp_rw [derivative_mul, derivative_C, zero_mul, zero_add, derivative_prod, derivative_sub,
-    derivative_X, derivative_C, sub_zero, mul_one, ← coe_eval_ring_hom, map_mul, map_multiset_sum,
-    multiset.map_map, function.comp, map_multiset_prod, multiset.map_map, function.comp, map_sub,
-    coe_eval_ring_hom, eval_C, eval_X], congr' 1,
-  have : (p.roots.map (λ y, ((p.roots.erase y).map (λ (x : ℂ), r - x)).prod)).sum =
-    ((p.roots.erase r).map (λ x, r - x)).prod +
-    ((p.roots.erase r).map (λ y, ((p.roots.erase y).map (λ x, r - x)).prod)).sum,
-  { rw [multiset.sum_map_erase (λ y, ((p.roots.erase y).map (λ x, r - x)).prod) hr], },
-  rw [this, add_right_eq_self, ← @multiset.sum_map_zero ℂ _ _ (p.roots.erase r)],
-  congr' 1, refine multiset.map_congr rfl (λ x hx, _),
-  rw [multiset.prod_eq_zero_iff, multiset.mem_map],
-  refine ⟨r, _, sub_self _⟩,
-  rcases eq_or_ne r x with rfl | h,
-  { exact hx }, exact (multiset.mem_erase_of_ne h).mpr hr, }
-
-lemma eval_root_derivative' (p : ℂ[X]) {r : ℂ} (hr : r ∈ p.roots) :
-  p.derivative.eval r =
-    (C p.leading_coeff * ((p.roots.erase r).map (λ x, X - C x)).prod).eval r :=
-by simp_rw [eval_root_derivative _ hr, eval_mul, eval_multiset_prod, multiset.map_map,
-  function.comp, eval_sub, eval_X, eval_C]
-/-
-def aeval_of_mem_roots (p : ℤ[X]) {x : ℂ} (hx : x ∈ (p.map (algebra_map ℤ ℂ)).roots) :
-  aeval x p = 0 := by
-{ rcases eq_or_ne p 0 with rfl | p0, { rw [aeval_zero], },
-  have map_p0 : p.map (algebra_map ℤ ℂ) ≠ 0 :=
-    (polynomial.map_ne_zero_of_injective _ (algebra_map ℤ ℂ).injective_int).mpr p0,
-  rw [aeval_def, eval₂_eq_eval_map], exact (mem_roots map_p0).mp hx, }
-
-def mem_roots_iff_aeval {p : ℤ[X]} (p0 : p ≠ 0) (x : ℂ) :
-  x ∈ (p.map (algebra_map ℤ ℂ)).roots ↔ aeval x p = 0 := by
-{ refine ⟨aeval_of_mem_roots _, λ h, _⟩,
-  have map_p0 : p.map (algebra_map ℤ ℂ) ≠ 0 :=
-    (polynomial.map_ne_zero_of_injective _ (algebra_map ℤ ℂ).injective_int).mpr p0,
-  rw [mem_roots map_p0], rwa [aeval_def, eval₂_eq_eval_map] at h, }
-
-lemma eval_F_ℂ {q : ℕ} (q0 : 0 < q) {p : ℤ[X]} (p0 : p ≠ 0)
-  {r : ℂ} (hr : r ∈ (p.map (algebra_map ℤ ℂ)).roots) :
-  (F_ℂ q p).eval r = 37 :=
-begin
-  have : (F_ℂ q p).eval r = (p.map (algebra_map ℤ ℂ) ^ q).derivative.eval r / q,
-  { rw [F_ℂ, F, eq_div_iff (nat.cast_ne_zero.mpr (pos_iff_ne_zero.mp q0) : (q : ℂ) ≠ 0), mul_comm,
-      ← eval_C_mul, derivative_pow, derivative_map, mul_assoc, polynomial.map_mul,
-      polynomial.map_pow, C_eq_nat_cast], },
-  have hr' : r ∈ (p.map (algebra_map ℤ ℂ) ^ q).roots,
-  { rwa [← polynomial.map_pow, mem_roots_iff_aeval (pow_ne_zero _ p0), map_pow,
-      (pow_eq_zero_iff q0 : _ ↔ _ = (0 : ℂ)), ← mem_roots_iff_aeval p0], },
-  rw [this, derivative_eval_root _ hr', leading_coeff_pow],
-  
-end
--/
-
-lemma F_sum_ideriv_eval {q : ℕ} (hq : 0 < q)
-  (p : ℤ[X]) (p' : ℂ[X]) {r : ℂ} (hr : r ∈ (p.map (algebra_map ℤ ℂ)).roots) :
-  ∃ n' : ℤ, (F q p p').sum_ideriv.eval r = ---- ℤ 改成数域？
-    (q - 1)! * ((p.map (algebra_map ℤ ℂ)).derivative ^ (q - 1) * p').eval r + q! * n' := by
-{ rw [eval_mul, eval_pow, eval_root_derivative' _ hr, ← eval_pow, ← eval_mul],
-  refine sum_ideriv_sl' _ _ hq _,
-  rw [F_eq, ← multiset.prod_map_erase _ hr, mul_left_comm, mul_pow, multiset.prod_map_pow,
-    C_pow, mul_assoc], }
-
-lemma sum_P_F_eq {q : ℕ} (hq : 0 < q)
-  (hct : ∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map exp).sum = 0)
-  (p : ℤ[X]) {r : ℂ} (hr : r ∈ (p.map (algebra_map ℤ ℂ)).roots) :
-  ∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (P (F q p (p.erase_root r)))).sum =
-  37 :=
-  -- -∑ i, c i • (((t i).map (algebra_map ℤ ℂ)).roots.map (λ x, (F q p (p.erase_root x)).sum_ideriv.eval r)).sum + 1 :=
-begin
- /- have F0 : (F q p (p.erase_root r)).sum_ideriv ≠ 0,
-  { rw [← sum_ideriv_linear_equiv_eq_sum_ideriv, linear_equiv.map_ne_zero_iff, F,
-      map_ne_zero_of_injective _ (algebra_map ℤ ℂ).injective_int], exact pow_ne_zero _ hp, },-/
-  let n' : ∀ x : ℂ, ℤ := λ x, if hx : x ∈ (p.map (algebra_map ℤ ℂ)).roots
-    then (F_sum_ideriv_eval hq p (p.erase_root r) hx).some else 0,
-  obtain ⟨n', h⟩ := F_sum_ideriv_eval hq p (p.erase_root r) hr,
-  simp_rw [sum_P_eq _ _ hct],
-  
- --   ← function.comp (resultant_right this) ((λ (x : ℂ), X - C x)),
-  --  ← map_multiset_sum],
-end
 -/
 .
 
@@ -984,6 +844,10 @@ protected def lift_finsupp {α : Type*} {r : α → α → Prop} {β : Type*} [h
   { rw [mem_image], rintros ⟨b, hb, rfl⟩, exact finsupp.mem_support_iff.mp hb, },
   { rw [lift_mk _ h], refine λ hb, mem_image_of_mem _ (finsupp.mem_support_iff.mpr hb), }, }
 
+lemma lift_finsupp_mk {α : Type*} {r : α → α → Prop} {γ : Type*} [has_zero γ]
+  (f : α →₀ γ) (h : ∀ a₁ a₂, r a₁ a₂ → f a₁ = f a₂) (a : α) :
+quot.lift_finsupp f h (quot.mk r a) = f a := rfl
+
 end quot
 
 namespace quotient
@@ -992,6 +856,10 @@ attribute [reducible, elab_as_eliminator]
 protected def lift_finsupp {α : Type*} {β : Type*} [s : setoid α] [has_zero β] (f : α →₀ β) :
   (∀ a b, a ≈ b → f a = f b) → quotient s →₀ β :=
 quot.lift_finsupp f
+
+@[simp] lemma lift_finsupp_mk {α : Type*} {β : Type*} [s : setoid α] [has_zero β] (f : α →₀ β)
+  (h : ∀ (a b : α), a ≈ b → f a = f b) (x : α) :
+quotient.lift_finsupp f h (quotient.mk x) = f x := rfl
 
 end quotient
 
@@ -1012,8 +880,37 @@ end mul_action
 instance is_conj.setoid' := mul_action.orbit_rel (Gal s) (K s)
 abbreviation conj_classes' := mul_action.orbit_rel.quotient (Gal s) (K s)
 
-noncomputable!
-def sum_conj_equiv : map_domain_fixed s ≃ (conj_classes' s →₀ K s) :=
+namespace conj_classes'
+
+instance : has_zero (conj_classes' s) := ⟨⟦0⟧⟩
+
+lemma out_eq_zero_iff (x : conj_classes' s) : x.out = 0 ↔ x = ⟦0⟧ :=
+begin
+  rw [quotient.eq_mk_iff_out],
+  refine ⟨λ h, by rw [h], λ h, _⟩,
+  cases h with a ha,
+  simp_rw [← ha, alg_equiv.smul_def, map_zero],
+end
+
+lemma zero_out : (0 : conj_classes' s).out = 0 :=
+(out_eq_zero_iff s 0).mpr rfl
+
+instance : has_neg (conj_classes' s) := ⟨quotient.lift (λ (x : K s), ⟦-x⟧)
+begin
+  rintros _ y ⟨f, rfl⟩, rw [quotient.eq],
+  change -f y ∈ mul_action.orbit (Gal s) (-y),
+  use f, change f (-y) = -f y, rw [alg_equiv.map_neg],
+end⟩
+
+lemma mk_neg (x : K s) : ⟦-x⟧ = -⟦x⟧ := rfl
+
+instance : has_involutive_neg (conj_classes' s) :=
+{ neg_neg := λ x, by rw [← quotient.out_eq x, ← mk_neg, ← mk_neg, neg_neg],
+  ..(infer_instance : has_neg (conj_classes' s)), }
+
+end conj_classes'
+
+def to_conj_equiv : map_domain_fixed s ≃ (conj_classes' s →₀ K s) :=
 begin
   refine (map_domain_fixed_equiv_subtype s).trans _,
   refine
@@ -1030,39 +927,117 @@ begin
   { refine λ f, finsupp.ext $ λ x, quotient.induction_on' x $ λ i, rfl, }
 end
 
-lemma sum_conj_equiv_apply (f : map_domain_fixed s) :
-  sum_conj_equiv s f = quotient.lift_finsupp (f : add_monoid_algebra (K s) (K s))
+lemma to_conj_equiv_apply (f : map_domain_fixed s) :
+  to_conj_equiv s f = quotient.lift_finsupp (f : add_monoid_algebra (K s) (K s))
     ((mem_map_domain_fixed_iff s f).mp f.2) := rfl
 
 @[simp]
-lemma sum_conj_equiv_apply_apply_mk (f : map_domain_fixed s) (i : K s) :
-  sum_conj_equiv s f (quotient.mk i) = f i := rfl
+lemma to_conj_equiv_apply_apply_mk (f : map_domain_fixed s) (i : K s) :
+  to_conj_equiv s f (quotient.mk i) = f i := rfl
 
 @[simp]
-lemma sum_conj_equiv_apply_apply_mk' (f : map_domain_fixed s) (i : K s) :
-  sum_conj_equiv s f (quotient.mk' i) = f i := rfl
+lemma to_conj_equiv_apply_apply_mk' (f : map_domain_fixed s) (i : K s) :
+  to_conj_equiv s f (quotient.mk' i) = f i := rfl
 
 @[simp]
-lemma sum_conj_equiv_symm_apply_apply (f : conj_classes' s →₀ K s) (i : K s) :
-  (sum_conj_equiv s).symm f i = f (quotient.mk i) := rfl
+lemma to_conj_equiv_symm_apply_apply (f : conj_classes' s →₀ K s) (i : K s) :
+  (to_conj_equiv s).symm f i = f (quotient.mk i) := rfl
 
 @[simp]
-lemma sum_conj_equiv_symm_apply_apply' (f : conj_classes' s →₀ K s) (i : K s) :
-  (sum_conj_equiv s).symm f i = f (quotient.mk' i) := rfl
+lemma to_conj_equiv_symm_apply_apply' (f : conj_classes' s →₀ K s) (i : K s) :
+  (to_conj_equiv s).symm f i = f (quotient.mk' i) := rfl
 
 @[simp]
-lemma sum_conj_equiv_apply_apply (f : map_domain_fixed s) (i : conj_classes' s) :
-  sum_conj_equiv s f i = f i.out :=
-by rw [← quotient.out_eq i, sum_conj_equiv_apply_apply_mk, quotient.out_eq]
+lemma to_conj_equiv_apply_apply (f : map_domain_fixed s) (i : conj_classes' s) :
+  to_conj_equiv s f i = f i.out :=
+by rw [← quotient.out_eq i, to_conj_equiv_apply_apply_mk, quotient.out_eq]
+
+@[simp]
+lemma to_conj_equiv_apply_zero_eq (f : map_domain_fixed s) :
+  to_conj_equiv s f 0 = f 0 :=
+by rw [to_conj_equiv_apply_apply, conj_classes'.zero_out]
 
 @[simps]
-noncomputable!
-def sum_conj_linear_equiv : map_domain_fixed s ≃ₗ[K s] (conj_classes' s →₀ K s) :=
+def to_conj_linear_equiv : map_domain_fixed s ≃ₗ[K s] (conj_classes' s →₀ K s) :=
 { map_add' := λ x y, by { ext i, simp_rw [equiv.to_fun_as_coe, finsupp.coe_add, pi.add_apply,
-    sum_conj_equiv_apply_apply], refl, },
+    to_conj_equiv_apply_apply], refl, },
   map_smul' := λ r x, by { ext i, simp_rw [equiv.to_fun_as_coe, finsupp.coe_smul, pi.smul_apply,
-    sum_conj_equiv_apply_apply], refl, },
-  ..sum_conj_equiv s, }
+    to_conj_equiv_apply_apply], refl, },
+  ..to_conj_equiv s, }
+
+namespace map_domain_fixed
+
+instance : comm_ring (conj_classes' s →₀ K s) :=
+{ zero := 0,
+  add := (+),
+  one := to_conj_linear_equiv s 1,
+  mul := λ x y, to_conj_linear_equiv s $
+    ((to_conj_linear_equiv s).symm x) * ((to_conj_linear_equiv s).symm y),
+  mul_assoc := λ a b c, by simp_rw [mul_def, linear_equiv.symm_apply_apply, mul_assoc],
+  one_mul := λ a, by simp_rw [linear_equiv.symm_apply_apply, one_mul,
+    linear_equiv.apply_symm_apply],
+  mul_one := λ a, by simp_rw [linear_equiv.symm_apply_apply, mul_one,
+    linear_equiv.apply_symm_apply],
+  left_distrib := λ a b c, by simp only [← map_add, ← mul_add],
+  right_distrib := λ a b c, by simp only [← map_add, ← add_mul],
+  mul_comm := λ a b, by { change to_conj_linear_equiv s _ = to_conj_linear_equiv s _,
+    exact congr_arg _ (mul_comm _ _), },
+  ..(infer_instance : add_comm_group (conj_classes' s →₀ K s)) }
+
+lemma one_def : (1 : conj_classes' s →₀ K s) = to_conj_linear_equiv s 1 := rfl
+
+lemma mul_def (x y : conj_classes' s →₀ K s) :
+  x * y = to_conj_linear_equiv s
+    (((to_conj_linear_equiv s).symm x) * ((to_conj_linear_equiv s).symm y)) := rfl
+
+instance cache : is_scalar_tower (K s) (map_domain_fixed s) (map_domain_fixed s) :=
+is_scalar_tower.right
+
+instance : algebra (K s) (conj_classes' s →₀ K s) :=
+algebra.of_module'
+  (λ r x, by rw [one_def, mul_def, smul_hom_class.map_smul, linear_equiv.symm_apply_apply,
+    smul_one_mul, ← smul_hom_class.map_smul, linear_equiv.apply_symm_apply])
+  (λ r x, by rw [one_def, mul_def, smul_hom_class.map_smul, linear_equiv.symm_apply_apply,
+    mul_smul_one, ← smul_hom_class.map_smul, linear_equiv.apply_symm_apply])
+
+lemma one_eq_single : (1 : conj_classes' s →₀ K s) = finsupp.single 0 1 :=
+begin
+  change (to_conj_equiv s) 1 = _,
+  ext i, rw [to_conj_equiv_apply_apply],
+  change (1 : add_monoid_algebra (K s) (K s)) (quotient.out i) = finsupp.single 0 1 i,
+  simp_rw [add_monoid_algebra.one_def, finsupp.single_apply],
+  change (ite (0 = i.out) 1 0 : K s) = ite (⟦0⟧ = i) 1 0,
+  simp_rw [eq_comm, conj_classes'.out_eq_zero_iff],
+end
+
+lemma algebra_map_eq_single (x : K s) :
+  algebra_map (K s) (conj_classes' s →₀ K s) x = finsupp.single 0 x :=
+begin
+  change x • (1 : conj_classes' s →₀ K s) = finsupp.single 0 x,
+  rw [one_eq_single, finsupp.smul_single, smul_eq_mul, mul_one],
+end
+
+lemma single_prod_apply_zero_ne_zero_iff (x : conj_classes' s) {a : K s} (ha : a ≠ 0)
+  (y : conj_classes' s) {b : K s} (hb : b ≠ 0) :
+  (finsupp.single x a * finsupp.single y b) 0 ≠ 0 ↔ x = -y := by {  }
+
+end map_domain_fixed
+
+@[simps]
+def to_conj_alg_equiv : map_domain_fixed s ≃ₐ[K s] (conj_classes' s →₀ K s) :=
+{ map_mul' := λ x y, by simp_rw [linear_equiv.to_fun_eq_coe, map_domain_fixed.mul_def,
+    linear_equiv.symm_apply_apply],
+  commutes' := λ r,
+  begin
+    simp_rw [map_domain_fixed.algebra_map_eq_single],
+    change (to_conj_equiv s) (algebra_map (K s) (map_domain_fixed s) r) = _,
+    ext i, rw [to_conj_equiv_apply_apply],
+    change finsupp.single 0 r (quotient.out i) = finsupp.single 0 r i,
+    simp_rw [finsupp.single_apply],
+    change ite (0 = i.out) r 0 = ite (⟦0⟧ = i) r 0,
+    simp_rw [@eq_comm _ _ i.out, @eq_comm _ _ i, conj_classes'.out_eq_zero_iff],
+  end,
+  ..to_conj_linear_equiv s, }
 
 lemma linear_independent_exp_aux3 (s : finset ℂ)
   (x : add_monoid_algebra (K s) (K s)) (x0 : x ≠ 0) (x_ker : x ∈ (Eval s).to_ring_hom.ker)
