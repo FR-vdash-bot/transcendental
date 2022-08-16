@@ -868,7 +868,7 @@ namespace quot
 attribute [reducible, elab_as_eliminator]
 protected def lift_finsupp {α : Type*} {r : α → α → Prop} {β : Type*} [has_zero β]
   (f : α →₀ β) (h : ∀ a b, r a b → f a = f b) : quot r →₀ β := by
-{ refine ⟨finset.image (mk r) f.support, quot.lift f h, λ a, ⟨_, a.ind (λ b, _)⟩⟩,
+{ refine ⟨image (mk r) f.support, quot.lift f h, λ a, ⟨_, a.ind (λ b, _)⟩⟩,
   { rw [mem_image], rintros ⟨b, hb, rfl⟩, exact finsupp.mem_support_iff.mp hb, },
   { rw [lift_mk _ h], refine λ hb, mem_image_of_mem _ (finsupp.mem_support_iff.mpr hb), }, }
 
@@ -907,6 +907,20 @@ end mul_action
 
 instance is_conj.setoid' := mul_action.orbit_rel (Gal s) (K s)
 abbreviation conj_classes' := mul_action.orbit_rel.quotient (Gal s) (K s)
+
+namespace minpoly
+
+lemma eq_of_alg_hom_eq {K S T : Type*} [field K] [ring S] [ring T]
+  [algebra K S] [algebra K T]
+  (f : S →ₐ[K] T) (hf : function.injective f)
+  {x : S} {y : T} (hx : is_integral K x) (h : y = f x) :
+  minpoly K x = minpoly K y :=
+minpoly.unique _ _ (minpoly.monic hx)
+  (by rw [h, aeval_alg_hom_apply, minpoly.aeval, alg_hom.map_zero])
+  (λ q q_monic root_q, minpoly.min _ _ q_monic
+    (by rwa [h, aeval_alg_hom_apply, map_eq_zero_iff _ hf] at root_q))
+
+end minpoly
 
 namespace conj_classes'
 
@@ -955,6 +969,12 @@ begin
     refine ⟨-y.out, y.out, _⟩,
     simp_rw [mk_neg, quotient.out_eq, neg_add_self, eq_self_iff_true, true_and], },
 end
+
+def minpoly : conj_classes' s → ℚ[X] :=
+quotient.lift (minpoly ℚ) (λ (a b : K s) ⟨f, h⟩, minpoly.eq_of_alg_hom_eq f.symm.to_alg_hom
+  f.symm.injective (is_separable.is_integral ℚ a) (by simp [← h]))
+
+lemma minpoly_mk (x : K s) : minpoly s ⟦x⟧ = _root_.minpoly ℚ x := rfl
 
 end conj_classes'
 
@@ -1368,11 +1388,13 @@ begin
   exact linear_independent_exp_aux2 s U' U'0 U'_ker,
 end
 
+end
+
 variables {ι : Type*} [fintype ι]
 
 abbreviation Range (u : ι → ℂ) (v : ι → ℂ) : finset ℂ := univ.image u ∪ univ.image v
 
-lemma linear_independent_exp_aux
+lemma linear_independent_exp_aux_rat
   (u : ι → ℂ) (hu : ∀ i, is_integral ℚ (u i)) (u_inj : function.injective u)
   (v : ι → ℂ) (hv : ∀ i, is_integral ℚ (v i)) (v0 : v ≠ 0)
   (h : ∑ i, v i * exp (u i) = 0) :
@@ -1385,20 +1407,20 @@ begin
   have hs : ∀ x ∈ s, is_integral ℚ x,
   { intros x hx,
     cases mem_union.mp hx with hxu hxv,
-    { obtain ⟨i, _, rfl⟩ := finset.mem_image.mp hxu,
+    { obtain ⟨i, _, rfl⟩ := mem_image.mp hxu,
       exact hu i, },
-    { obtain ⟨i, _, rfl⟩ := finset.mem_image.mp hxv,
+    { obtain ⟨i, _, rfl⟩ := mem_image.mp hxv,
       exact hv i, }, },
   have u_mem : ∀ i, u i ∈ K' s,
   { intros i,
     apply intermediate_field.subset_adjoin,
     rw [mem_root_set (Poly_ne_zero s hs), map_prod, prod_eq_zero_iff],
-    exact ⟨u i, mem_union_left _ (finset.mem_image.mpr ⟨i, mem_univ _, rfl⟩), minpoly.aeval _ _⟩, },
+    exact ⟨u i, mem_union_left _ (mem_image.mpr ⟨i, mem_univ _, rfl⟩), minpoly.aeval _ _⟩, },
   have v_mem : ∀ i, v i ∈ K' s,
   { intros i,
     apply intermediate_field.subset_adjoin,
     rw [mem_root_set (Poly_ne_zero s hs), map_prod, prod_eq_zero_iff],
-    exact ⟨v i, mem_union_right _ (finset.mem_image.mpr ⟨i, mem_univ _, rfl⟩), minpoly.aeval _ _⟩, },
+    exact ⟨v i, mem_union_right _ (mem_image.mpr ⟨i, mem_univ _, rfl⟩), minpoly.aeval _ _⟩, },
   let u' : ∀ i, K s := λ i : ι, Lift s ⟨u i, u_mem i⟩,
   let v' : ∀ i, K s := λ i : ι, Lift s ⟨v i, v_mem i⟩,
   have u'_inj : function.injective u' :=
@@ -1433,6 +1455,34 @@ begin
   exact linear_independent_exp_aux1 s f f0 hf,
 end
 
+lemma linear_independent_exp_aux
+  (u : ι → ℂ) (hu : ∀ i, is_integral ℚ (u i)) (u_inj : function.injective u)
+  (v : ι → ℂ) (hv : ∀ i, is_integral ℚ (v i)) (v0 : v ≠ 0)
+  (h : ∑ i, v i * exp (u i) = 0) :
+  ∃ (w : ℤ) (q : finset (conj_classes' (Range u v))) (hq : (0 : conj_classes' (Range u v)) ∉ q)
+    (w' : conj_classes' (Range u v) → ℤ),
+    (w + ∑ c in q, w' c • ∑ x in c.orbit.to_finset,
+      exp (algebra_map (K (Range u v)) ℂ x) : ℂ) = 0 :=
+begin
+  obtain ⟨w, q, hq, w', h⟩ := linear_independent_exp_aux_rat u hu u_inj v hv v0 h,
+  let N := w.denom * ∏ c in q, (w' c).denom,
+  use [(w * N).num, q, hq, λ c, (w' c * N).num],
+  have hw : ((w * N).num : ℚ) = w * N,
+  { dsimp only [N],
+    rw [← rat.denom_eq_one_iff, nat.cast_mul, ← mul_assoc, rat.mul_denom_eq_num],
+    norm_cast, },
+  have hw' : ∀ c ∈ q, ((w' c * N).num : ℚ) = w' c * N,
+  { intros c hc, dsimp only [N],
+    rw [← rat.denom_eq_one_iff, ← mul_prod_erase _ _ hc, mul_left_comm, nat.cast_mul,
+      ← mul_assoc, rat.mul_denom_eq_num],
+    norm_cast, },
+  convert_to (w * N + ∑ c in q, (w' c * N) • ∑ x in c.orbit.to_finset,
+    exp (algebra_map (K (Range u v)) ℂ x) : ℂ) = 0,
+  { congr' 1, { norm_cast, rw [hw], },
+    refine sum_congr rfl (λ i hi, _),
+    rw [← hw' i hi, rat.coe_int_num, ← zsmul_eq_smul_cast], },
+  simp_rw [mul_comm _ ↑N, ← smul_smul, ← smul_sum, ← nsmul_eq_mul, ← nsmul_eq_smul_cast,
+    ← smul_add, h, nsmul_zero],
 end
 
 lemma linear_independent_exp (s : finset (integral_closure ℚ ℂ)) :
