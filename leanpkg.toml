@@ -1,8 +1,8 @@
 [package]
 name = "transcendental"
 version = "0.1"
-lean_version = "leanprover-community/lean:3.45.0"
+lean_version = "leanprover-community/lean:3.46.0"
 path = "src"
 
 [dependencies]
-mathlib = {git = "https://github.com/leanprover-community/mathlib", rev = "a4ea8895d8cd64c0e1385d3cb14057d07131a80f"}
+mathlib = {git = "https://github.com/leanprover-community/mathlib", rev = "7b94ffe43efe653c74b8ca9dc1a86474375e979e"}

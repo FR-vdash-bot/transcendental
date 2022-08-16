@@ -732,17 +732,6 @@ end add_monoid_algebra
 .
 
 section
-variables {K : Type*} {L : Type*}
-variables [field K] [field L] [algebra K L] {p : polynomial K}
-
-open intermediate_field
-
-lemma adjoin_root_set_is_splitting_field {p : polynomial K} (hp : p.splits (algebra_map K L)) :
-  p.is_splitting_field K (adjoin K (p.root_set L)) := sorry
-
-end
-
-section
 variables (s : finset ℂ)
 
 abbreviation Poly : ℚ[X] := ∏ x in s, minpoly ℚ x
@@ -751,7 +740,7 @@ abbreviation K' : intermediate_field ℚ ℂ :=
 intermediate_field.adjoin ℚ ((Poly s).root_set ℂ)
 
 instance : is_splitting_field ℚ (K' s) (Poly s) :=
-adjoin_root_set_is_splitting_field (is_alg_closed.splits_codomain (Poly s))
+intermediate_field.adjoin_root_set_is_splitting_field (is_alg_closed.splits_codomain (Poly s))
 
 abbreviation K : Type* := (Poly s).splitting_field
 
