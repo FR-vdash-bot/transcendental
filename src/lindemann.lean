@@ -544,14 +544,6 @@ begin
     mul_comm, ← sum_ideriv_map, ← P],
   exact (Pp'_le r q (nat.one_le_of_lt q0)).trans (pow_le_pow_of_le_left (c'0 r) (hc r hr) _),
 end
-/-
-variables {ι : Type*} [fintype ι]
-  (c : ι → ℤ) (t : ι → ℤ[X])
-/-
-  (t0 : ∀ i, t i ≠ 0)
-  (ht : ∀ i j, i ≠ j →
-    multiset.disjoint ((t i).map (algebra_map ℤ ℂ)).roots ((t j).map (algebra_map ℤ ℂ)).roots)-/
--/
 
 namespace add_monoid_algebra
 
@@ -863,6 +855,8 @@ def map_domain_fixed_equiv_subtype :
   left_inv := λ f, by simp_rw [← subtype.coe_inj, subtype.coe_mk],
   right_inv := λ f, by simp_rw [← subtype.coe_inj, subtype.coe_mk], }
 
+end
+
 namespace quot
 
 attribute [reducible, elab_as_eliminator]
@@ -922,6 +916,68 @@ minpoly.unique _ _ (minpoly.monic hx)
 
 end minpoly
 
+namespace alg_equiv
+variables {A₁ A₂ : Type*}
+
+variables [semiring A₁] [semiring A₂]
+variables [algebra R A₁] [algebra R A₂]
+variables (e : A₁ ≃ₐ[R] A₂)
+
+lemma symm_apply_eq {x y} : e.symm x = y ↔ x = e y :=
+e.to_equiv.symm_apply_eq
+
+end alg_equiv
+
+namespace intermediate_field
+
+variables (F : Type*) [field F] {E : Type*} [field E] [algebra F E] {α : E}
+
+lemma adjoin_root_equiv_adjoin_symm_apply_gen (h : is_integral F α) :
+  (adjoin_root_equiv_adjoin F h).symm (adjoin_simple.gen F α) =
+    adjoin_root.root (minpoly F α) :=
+by rw [alg_equiv.symm_apply_eq, adjoin_root_equiv_adjoin_apply_root]
+
+end intermediate_field
+
+section heq
+universes u₁ u₂ u₃
+
+section
+variables {α α' : Sort u₂} {β : α → Sort u₃} {β' : α' → Sort u₃}
+
+lemma heq.funext {f : Π x : α, β x} {f' : Π x : α', β' x}
+  (hα : α = α') (hβ : β == β') (h : ∀ x x', x == x' → f x == f' x') :
+  f == f' :=
+by { cases hα, cases hβ, exact heq_of_eq (funext (λ x, eq_of_heq (h x x heq.rfl))), }
+
+end
+
+namespace fun_like
+
+variables {F F' : Sort u₁} {α α' : Sort u₂} {β : α → Sort u₃} {β' : α' → Sort u₃}
+  [i : fun_like F α β] [i' : fun_like F' α' β']
+
+lemma heq_ext {f : F} {f' : F'}
+  (h₁ : F == F') (h₂ : α == α') (h₃ : β == β') (h₄ : i == i')
+  (h : ∀ x x', x == x' → f x == f' x') :
+  f == f' := 
+by { unfreezingI { cases h₁, cases h₂, cases h₃, cases h₄, },
+  exact heq_of_eq (fun_like.ext f f' (λ x, eq_of_heq (h x x heq.rfl))), }
+
+lemma congr_heq {f : F} {f' : F'} {x : α} {x' : α'}
+  (h₁ : f == f') (h₂ : x == x') (h₃ : β == β') (h₄ : i == i') :
+  f x == f' x' :=
+by { unfreezingI { cases h₁, cases h₂, cases h₃, cases h₄, }, refl, }
+
+end fun_like
+
+universe u
+
+lemma cast_heq' {α β α' : Sort u} (h : α = β) {a : α} {a' : α'} (h' : a == a') : cast h a == a' :=
+by { cases h, cases h', refl, }
+
+end heq
+
 namespace conj_classes'
 
 instance : has_zero (conj_classes' s) := ⟨⟦0⟧⟩
@@ -976,7 +1032,141 @@ quotient.lift (minpoly ℚ) (λ (a b : K s) ⟨f, h⟩, minpoly.eq_of_alg_hom_eq
 
 lemma minpoly_mk (x : K s) : minpoly s ⟦x⟧ = _root_.minpoly ℚ x := rfl
 
+lemma minpoly_out (c : conj_classes' s) : _root_.minpoly ℚ c.out = minpoly s c :=
+by rw [← c.out_eq, minpoly_mk, c.out_eq]
+
+lemma minpoly.monic (c : conj_classes' s) : monic (minpoly s c) :=
+by { rw [← c.out_eq, minpoly_mk], exact minpoly.monic (is_separable.is_integral ℚ _), }
+
+lemma minpoly.ne_zero (c : conj_classes' s) : minpoly s c ≠ 0 :=
+by { rw [← c.out_eq, minpoly_mk], exact minpoly.ne_zero (is_separable.is_integral ℚ _), }
+
+lemma minpoly.irreducible (c : conj_classes' s) : irreducible (minpoly s c) :=
+by { rw [← c.out_eq, minpoly_mk], exact minpoly.irreducible (is_separable.is_integral ℚ _), }
+
+lemma minpoly.splits (c : conj_classes' s) : splits (algebra_map ℚ (K s)) (minpoly s c) :=
+by { rw [← c.out_eq, minpoly_mk], exact normal.splits infer_instance c.out, }
+
+lemma minpoly.separable (c : conj_classes' s) : separable (minpoly s c) :=
+by { rw [← c.out_eq, minpoly_mk], exact is_separable.separable ℚ c.out, }
+
+lemma minpoly.inj (c d : conj_classes' s) (h : minpoly s c = minpoly s d) : c = d :=
+begin
+  let fc := intermediate_field.adjoin_root_equiv_adjoin ℚ (is_separable.is_integral ℚ c.out),
+  let fd := intermediate_field.adjoin_root_equiv_adjoin ℚ (is_separable.is_integral ℚ d.out),
+  let congr_f : adjoin_root (_root_.minpoly ℚ c.out) ≃ₐ[ℚ] adjoin_root (_root_.minpoly ℚ d.out),
+  { rw [minpoly_out, minpoly_out, h], },
+  have congr_f_apply : ∀ x, congr_f x == x,
+  { intro x, change congr_f x == (alg_equiv.refl : _ ≃ₐ[ℚ] _) x,
+    dsimp only [congr_f],
+    refine fun_like.congr_heq _ heq.rfl _ _,
+    { simp_rw [eq_mpr_eq_cast, cast_cast],
+      refine cast_heq' _ (fun_like.heq_ext _ _ _ _ _),
+      any_goals { rw [minpoly_out, h], },
+      rintros x₁ x₂ rfl, refl, },
+    all_goals { rw [minpoly_out, minpoly_out, h], }, },
+  let f' := fc.symm.trans (congr_f.trans fd),
+  let f := f'.lift_normal (K s),
+  rw [← quotient.out_equiv_out],
+  refine ⟨f.symm, _⟩,
+  dsimp only [f, alg_equiv.smul_def],
+  simp_rw [alg_equiv.symm_apply_eq, ← intermediate_field.adjoin_simple.algebra_map_gen ℚ c.out,
+    ← intermediate_field.adjoin_simple.algebra_map_gen ℚ d.out, alg_equiv.lift_normal_commutes],
+  apply congr_arg,
+  simp_rw [f', alg_equiv.trans_apply, ← fd.symm_apply_eq, fc, fd,
+    intermediate_field.adjoin_root_equiv_adjoin_symm_apply_gen],
+  refine eq_of_heq (heq.trans _ (congr_f_apply _).symm),
+  rw [minpoly_out, minpoly_out, h],
+end
+
+lemma aeval_minpoly_iff (x : K s) (c : conj_classes' s) : aeval x (minpoly s c) = 0 ↔ ⟦x⟧ = c :=
+begin
+  symmetry, split, { rintros rfl, exact minpoly.aeval _ _, },
+  intros h,
+  apply minpoly.inj,
+  rw [minpoly_mk, ← minpoly.eq_of_irreducible (minpoly.irreducible s c) h],
+  rw [(minpoly.monic s c).leading_coeff, inv_one, C_1, mul_one],
+end
+
+lemma root_set_minpoly_eq_orbit (c : conj_classes' s) :
+  (minpoly s c).root_set (K s) = c.orbit :=
+begin
+  ext x, rw [mul_action.orbit_rel.quotient.mem_orbit, quotient.mk'_eq_mk],
+  simp_rw [mem_root_set_iff (minpoly.ne_zero s c)],
+  exact aeval_minpoly_iff s x c,
+end
+
+lemma minpoly.map_eq_prod (c : conj_classes' s) :
+  (minpoly s c).map (algebra_map ℚ (K s)) = ∏ x in c.orbit.to_finset, (X - C x) :=
+begin
+  simp_rw [← root_set_minpoly_eq_orbit, prod_eq_multiset_prod, root_set_def,
+    finset.to_finset_coe, multiset.to_finset_val],
+  rw [multiset.dedup_eq_self.mpr (nodup_roots _),
+    polynomial.prod_multiset_X_sub_C_of_monic_of_roots_card_eq (monic.map _ _)],
+  { rw [splits_iff_card_roots.mp], rw [splits_id_iff_splits], exact minpoly.splits s c, },
+  { exact minpoly.monic s c, },
+  { exact (minpoly.separable s c).map, },
+end
+
 end conj_classes'
+
+namespace finsupp
+
+def const_on {α β : Type*} [has_zero β] (s : finset α) (x : β) : α →₀ β :=
+{ support := if x = 0 then ∅ else s,
+  to_fun := λ i, if i ∈ s then x else 0,
+  mem_support_to_fun := λ a,
+  begin
+    rcases eq_or_ne x 0 with rfl | x0,
+    all_goals { rw [if_pos rfl] <|> rw [if_neg (λ h, x0 h)], split_ifs, },
+    { exact ⟨false.elim, λ H, H rfl⟩, },
+    { exact ⟨false.elim, λ H, H rfl⟩, },
+    { exact ⟨λ _, x0, λ _, h⟩, },
+    { exact ⟨λ H, absurd H h, λ x, absurd rfl x⟩, },
+  end }
+
+lemma const_on_apply {α β : Type*} [has_zero β] (s : finset α) (x : β) (i : α) :
+  const_on s x i = if i ∈ s then x else 0 := rfl
+
+lemma const_on_apply_of_mem {α β : Type*} [has_zero β]
+  {s : finset α} {x : β} {i : α} (hi : i ∈ s) :
+  const_on s x i = x :=
+by rw [const_on_apply, if_pos hi]
+
+lemma const_on_apply_of_not_mem {α β : Type*} [has_zero β]
+  {s : finset α} {x : β} {i : α} (hi : i ∉ s) :
+  const_on s x i = 0 :=
+by rw [const_on_apply, if_neg hi]
+
+lemma support_const_on {α β : Type*} [has_zero β] (s : finset α) (x : β) :
+  (const_on s x).support = if x = 0 then ∅ else s := rfl
+
+lemma support_const_on_subset {α β : Type*} [has_zero β] {s : finset α} {x : β} :
+  (const_on s x).support ⊆ s :=
+by { rw [support_const_on], split_ifs, exacts [empty_subset _, subset_rfl], }
+
+lemma const_on_eq_sum_single {α β : Type*} [add_comm_monoid β]
+  (s : finset α) (x : β) :
+  const_on s x = ∑ i in s, single i x :=
+begin
+  rw [← sum_single (const_on s x), sum, sum_subset support_const_on_subset],
+  { refine finset.sum_congr rfl (λ i hi, _), rw [const_on_apply_of_mem hi], },
+  intros i _ hi, rw [not_mem_support_iff.mp hi, single_zero],
+end
+
+@[simp, to_additive]
+lemma prod_const_on_index {α M N : Type*} [has_zero M] [comm_monoid N]
+  {s : finset α} {b : M} {h : α → M → N} (h_zero : ∀ a ∈ s, h a 0 = 1) :
+  (const_on s b).prod h = ∏ a in s, h a b :=
+begin
+  rw [prod_of_support_subset _ support_const_on_subset h h_zero],
+  refine finset.prod_congr rfl (λ x hx, _), rw [const_on_apply_of_mem hx],
+end
+
+end finsupp
+
+section to_conj_equiv
+variables (F : Type*) [field F] [algebra ℚ F]
 
 def to_conj_equiv : map_domain_fixed s F ≃ (conj_classes' s →₀ F) :=
 begin
@@ -1014,7 +1204,7 @@ lemma to_conj_equiv_symm_apply_apply' (f : conj_classes' s →₀ F) (i : K s) :
 @[simp]
 lemma to_conj_equiv_apply_apply (f : map_domain_fixed s F) (i : conj_classes' s) :
   to_conj_equiv s F f i = f i.out :=
-by rw [← quotient.out_eq i, to_conj_equiv_apply_apply_mk, quotient.out_eq]
+by rw [← i.out_eq, to_conj_equiv_apply_apply_mk, i.out_eq]
 
 @[simp]
 lemma to_conj_equiv_apply_zero_eq (f : map_domain_fixed s F) :
@@ -1075,10 +1265,10 @@ lemma one_eq_single : (1 : conj_classes' s →₀ F) = finsupp.single 0 1 :=
 begin
   change to_conj_equiv s F 1 = _,
   ext i, rw [to_conj_equiv_apply_apply],
-  change (1 : add_monoid_algebra F (K s)) (quotient.out i) = finsupp.single 0 1 i,
+  change (1 : add_monoid_algebra F (K s)) i.out = finsupp.single 0 1 i,
   simp_rw [add_monoid_algebra.one_def, finsupp.single_apply],
   change (ite (0 = i.out) 1 0 : F) = ite (⟦0⟧ = i) 1 0,
-  simp_rw [eq_comm, conj_classes'.out_eq_zero_iff],
+  simp_rw [@eq_comm _ _ i.out, @eq_comm _ _ i, conj_classes'.out_eq_zero_iff],
 end
 
 lemma algebra_map_eq_single (x : F) :
@@ -1100,67 +1290,12 @@ def to_conj_alg_equiv : map_domain_fixed s F ≃ₐ[F] (conj_classes' s →₀ F
     simp_rw [finsupp.conj_classes'.algebra_map_eq_single],
     change to_conj_equiv s F (algebra_map F (map_domain_fixed s F) r) = _,
     ext i, rw [to_conj_equiv_apply_apply],
-    change finsupp.single 0 r (quotient.out i) = finsupp.single 0 r i,
+    change finsupp.single 0 r i.out = finsupp.single 0 r i,
     simp_rw [finsupp.single_apply],
     change ite (0 = i.out) r 0 = ite (⟦0⟧ = i) r 0,
     simp_rw [@eq_comm _ _ i.out, @eq_comm _ _ i, conj_classes'.out_eq_zero_iff],
   end,
   ..to_conj_linear_equiv s F, }
-
-namespace finsupp
-
-def const_on {α β : Type*} [has_zero β] (s : finset α) (x : β) : α →₀ β :=
-{ support := if x = 0 then ∅ else s,
-  to_fun := λ i, if i ∈ s then x else 0,
-  mem_support_to_fun := λ a,
-  begin
-    rcases eq_or_ne x 0 with rfl | x0,
-    all_goals { rw [if_pos rfl] <|> rw [if_neg (λ h, x0 h)], split_ifs, },
-    { exact ⟨false.elim, λ H, H rfl⟩, },
-    { exact ⟨false.elim, λ H, H rfl⟩, },
-    { exact ⟨λ _, x0, λ _, h⟩, },
-    { exact ⟨λ H, absurd H h, λ x, absurd rfl x⟩, },
-  end }
-
-lemma const_on_apply {α β : Type*} [has_zero β] (s : finset α) (x : β) (i : α) :
-  const_on s x i = if i ∈ s then x else 0 := rfl
-
-lemma const_on_apply_of_mem {α β : Type*} [has_zero β]
-  {s : finset α} {x : β} {i : α} (hi : i ∈ s) :
-  const_on s x i = x :=
-by rw [const_on_apply, if_pos hi]
-
-lemma const_on_apply_of_not_mem {α β : Type*} [has_zero β]
-  {s : finset α} {x : β} {i : α} (hi : i ∉ s) :
-  const_on s x i = 0 :=
-by rw [const_on_apply, if_neg hi]
-
-lemma support_const_on {α β : Type*} [has_zero β] (s : finset α) (x : β) :
-  (const_on s x).support = if x = 0 then ∅ else s := rfl
-
-lemma support_const_on_subset {α β : Type*} [has_zero β] {s : finset α} {x : β} :
-  (const_on s x).support ⊆ s :=
-by { rw [support_const_on], split_ifs, exacts [empty_subset _, subset_rfl], }
-
-lemma const_on_eq_sum_single {α β : Type*} [add_comm_monoid β]
-  (s : finset α) (x : β) :
-  const_on s x = ∑ i in s, single i x :=
-begin
-  rw [← sum_single (const_on s x), sum, sum_subset support_const_on_subset],
-  { refine finset.sum_congr rfl (λ i hi, _), rw [const_on_apply_of_mem hi], },
-  intros i _ hi, rw [not_mem_support_iff.mp hi, single_zero],
-end
-
-@[simp, to_additive]
-lemma prod_const_on_index {α M N : Type*} [has_zero M] [comm_monoid N]
-  {s : finset α} {b : M} {h : α → M → N} (h_zero : ∀ a ∈ s, h a 0 = 1) :
-  (const_on s b).prod h = ∏ a in s, h a b :=
-begin
-  rw [prod_of_support_subset _ support_const_on_subset h h_zero],
-  refine finset.prod_congr rfl (λ x hx, _), rw [const_on_apply_of_mem hx],
-end
-
-end finsupp
 
 lemma to_conj_equiv_symm_single.aux (x : conj_classes' s) (a : F) :
   finsupp.const_on x.orbit.to_finset a ∈ map_domain_fixed s F :=
@@ -1209,7 +1344,7 @@ lemma single_prod_apply_zero_eq_zero_iff (x : conj_classes' s) {a : F} (ha : a �
   (finsupp.single x a * finsupp.single y b) 0 = 0 ↔ x ≠ -y :=
 by { convert (single_prod_apply_zero_ne_zero_iff s F x ha y hb).not, rw [ne.def, not_not], }
 
-end
+end to_conj_equiv
 
 section Eval
 
