@@ -327,7 +327,7 @@ begin
     ← nat.factorial_mul_desc_factorial (tsub_le_self : k - q ≤ k), tsub_tsub_cancel_of_le hk,
     nat.cast_mul, mul_assoc],
   rw [aeval_def, eval₂_eq_eval_map, zsmul_eq_mul, polynomial.map_mul,
-    map_int_cast, eval_mul, eval_int_cast, int.cast_coe_nat, nsmul_eq_mul],
+    polynomial.map_int_cast, eval_mul, eval_int_cast, int.cast_coe_nat, nsmul_eq_mul],
 end
 
 lemma sum_ideriv_sl (p : R[X]) (q : ℕ) :
@@ -501,7 +501,8 @@ begin
   have hcq : ∀ {x : ℝ}, 0 ≤ max x 1 ^ q := λ x, pow_nonneg hc q,
   have hcq' := pow_nonneg hc' q,
   have le_max_one_pow : ∀ {x : ℝ}, x ≤ max x 1 ^ q := λ x, (max_cases x 1).elim
-    (λ h, h.1.symm ▸ le_self_pow h.2 hq) (λ h, by rw [h.1, one_pow]; exact h.2.le),
+    (λ h, h.1.symm ▸ le_self_pow h.2 (zero_lt_one.trans_le hq).ne')
+    (λ h, by rw [h.1, one_pow]; exact h.2.le),
   refine mul_le_mul le_max_one_pow _ (mul_nonneg (mul_nonneg h₂ hcq') h₃) hcq,
   refine mul_le_mul _ le_max_one_pow h₃ (mul_nonneg hcq hcq'),
   refine mul_le_mul le_max_one_pow le_rfl hcq' hcq,
@@ -589,7 +590,7 @@ begin
     mul_comm, nat.mul_factorial_pred q0, ← h],
   rw [nsmul_eq_mul, ← int.cast_coe_nat, ← zsmul_eq_mul, smul_smul, mul_add, ← nsmul_eq_mul,
     ← nsmul_eq_mul, smul_smul, mul_comm, nat.mul_factorial_pred q0, ← h', zsmul_eq_mul,
-    aeval_def, eval₂_at_zero, ring_hom.eq_int_cast, int.cast_id, ← int.coe_cast_ring_hom,
+    aeval_def, eval₂_at_zero, eq_int_cast, int.cast_id, ← int.coe_cast_ring_hom,
     ← algebra_map_int_eq, ← eval₂_at_zero, aeval_def, eval₂_eq_eval_map, eval₂_eq_eval_map,
     mul_comm, ← sum_ideriv_map, ← P],
   exact (Pp'_le r q (nat.one_le_of_lt q0)).trans (pow_le_pow_of_le_left (c'0 r) (hc r hr) _),
@@ -691,13 +692,13 @@ intermediate_field.adjoin_root_set_is_splitting_field (is_alg_closed.splits_codo
 
 abbreviation K : Type* := p.splitting_field
 
-instance : number_field (K p) := @number_field.mk (K p) infer_instance sorry sorry
+--instance : number_field (K p) := @number_field.mk (K p) infer_instance sorry sorry
 
 instance : is_galois ℚ (K p) := {}
 
 abbreviation Lift : K' p ≃ₐ[ℚ] K p := is_splitting_field.alg_equiv (K' p) p
 
-instance : algebra (K p) ℂ :=
+instance algebra_K_ℂ : algebra (K p) ℂ :=
 ((K' p).val.comp (Lift p).symm.to_alg_hom).to_ring_hom.to_algebra
 
 /--
@@ -714,6 +715,9 @@ intermediate_field.to_algebra _
 example : algebra_int (K p) = (infer_instance : algebra ℤ (K p)) := rfl
 -/
 instance avoid_diamond_int_cache : algebra ℤ (K p) := algebra_int (K p)
+
+instance : algebra ℚ (K p) := infer_instance
+instance : has_smul ℚ (K p) := algebra.to_has_smul
 
 instance cache_ℚ_K_ℂ : is_scalar_tower ℚ (K p) ℂ := infer_instance
 instance cache_ℤ_K_ℂ : is_scalar_tower ℤ (K p) ℂ := infer_instance
@@ -956,6 +960,10 @@ end
 lemma minpoly.injective : function.injective (@minpoly p) :=
 λ x y, minpoly.inj
 
+lemma minpoly.nodup_roots (c : conj_classes' p) :
+  ((minpoly c).map (algebra_map ℚ p.splitting_field)).roots.nodup :=
+nodup_roots (minpoly.separable c).map
+
 lemma aeval_minpoly_iff (x : p.splitting_field) (c : conj_classes' p) :
   aeval x (minpoly c) = 0 ↔ ⟦x⟧ = c :=
 begin
@@ -974,6 +982,19 @@ begin
   exact aeval_minpoly_iff x c,
 end
 
+lemma roots_minpoly_eq_orbit_val (c : conj_classes' p) :
+  ((minpoly c).map (algebra_map ℚ p.splitting_field)).roots = c.orbit.to_finset.1 :=
+begin
+  simp_rw [← root_set_minpoly_eq_orbit, root_set_def, to_finset_coe,
+    multiset.to_finset_val], symmetry, rw [multiset.dedup_eq_self],
+  exact nodup_roots ((separable_map _).mpr (minpoly.separable c)),
+end
+
+lemma orbit_eq_mk_roots_minpoly (c : conj_classes' p) :
+  c.orbit.to_finset =
+    ⟨((minpoly c).map (algebra_map ℚ p.splitting_field)).roots, minpoly.nodup_roots c⟩ :=
+by simpa only [roots_minpoly_eq_orbit_val]
+
 lemma minpoly.map_eq_prod (c : conj_classes' p) :
   (minpoly c).map (algebra_map ℚ p.splitting_field) = ∏ x in c.orbit.to_finset, (X - C x) :=
 begin
@@ -985,6 +1006,248 @@ begin
   { exact minpoly.monic c, },
   { exact (minpoly.separable c).map, },
 end
+/-
+def class_of_roots_irreducible
+  {q : ℚ[X]} (q_splits : q.splits (algebra_map ℚ p.splitting_field))
+  (hq : _root_.irreducible q) : conj_classes' p :=
+⟦root_of_splits (algebra_map ℚ p.splitting_field) q_splits (degree_pos_of_irreducible hq).ne'⟧
+
+lemma minpoly_class_of_roots_irreducible_of_monic
+  {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q)
+  (hq : _root_.irreducible q) (q_monic : q.monic) :
+  (class_of_roots_irreducible q_splits hq).minpoly = q :=
+begin
+  dsimp only [class_of_roots_irreducible], rw [minpoly_mk],
+  exact (minpoly.eq_of_irreducible_of_monic hq (map_root_of_splits _ _ _) q_monic).symm,
+end
+
+lemma minpoly_class_of_roots_irreducible
+  {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q)
+  (hq : _root_.irreducible q) :
+  (class_of_roots_irreducible q_splits hq).minpoly = q * C q.leading_coeff⁻¹ :=
+begin
+  dsimp only [class_of_roots_irreducible], rw [minpoly_mk],
+  exact (minpoly.eq_of_irreducible hq (map_root_of_splits _ _ _)).symm,
+end
+
+lemma class_of_roots_irreducible_minpoly (c : conj_classes' p)
+  (h₁ : c.minpoly.splits (algebra_map ℚ p.splitting_field)) (h₂ : irreducible c.minpoly) :
+  class_of_roots_irreducible h₁ h₂ = c :=
+begin
+  dsimp only [class_of_roots_irreducible], apply minpoly.inj, rw [minpoly_mk],
+  exact minpoly_class_of_roots_irreducible_of_monic _ _ (minpoly.monic c),
+end
+
+lemma root_set_C_mul (q : ℚ[X]) {a : ℚ} (a0 : a ≠ 0) :
+  q.root_set p.splitting_field = (C a * q).root_set p.splitting_field :=
+by { simp_rw [root_set, polynomial.map_mul, map_C,
+  roots_C_mul _ (((algebra_map ℚ p.splitting_field).map_ne_zero).mpr a0)], }
+
+lemma root_set_mul_C (q : ℚ[X]) {a : ℚ} (a0 : a ≠ 0) :
+  q.root_set p.splitting_field = (q * C a).root_set p.splitting_field :=
+by { rw [mul_comm], exact root_set_C_mul q a0, }
+
+lemma root_set_eq_orbit {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q)
+  (hq : _root_.irreducible q) :
+  q.root_set p.splitting_field = (class_of_roots_irreducible q_splits hq).orbit :=
+begin
+  rw [← root_set_minpoly_eq_orbit, minpoly_class_of_roots_irreducible, root_set_mul_C],
+  exact inv_ne_zero (leading_coeff_ne_zero.mpr hq.ne_zero),
+end
+
+lemma roots_eq_orbit {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q)
+  (hq : _root_.irreducible q) :
+  (q.map (algebra_map ℚ p.splitting_field)).roots =
+    (class_of_roots_irreducible q_splits hq).orbit.to_finset.1 :=
+begin
+  simp_rw [← root_set_eq_orbit q_splits hq, root_set_def, to_finset_coe,
+    multiset.to_finset_val], symmetry, rw [multiset.dedup_eq_self],
+  exact nodup_roots ((separable_map _).mpr hq.separable),
+end
+
+def classes_of_roots {q : ℚ[X]} (q_splits : q.splits (algebra_map ℚ p.splitting_field)) :
+  multiset (conj_classes' p) :=
+(unique_factorization_monoid.normalized_factors q).pmap
+  (λ (q : ℚ[X]) (hq : q.splits (algebra_map ℚ p.splitting_field) ∧ irreducible q),
+    class_of_roots_irreducible hq.1 hq.2)
+  (λ d hd,
+  begin
+    refine ⟨_, unique_factorization_monoid.irreducible_of_normalized_factor _ hd⟩,
+    have d_dvd_q := unique_factorization_monoid.dvd_of_mem_normalized_factors hd,
+    refine splits_of_splits_of_dvd _ _ q_splits d_dvd_q,
+    rintros rfl, simpa [unique_factorization_monoid.normalized_factors_zero] using hd,
+  end)
+
+section
+
+open list multiset
+
+variables {α : Type*} {β : Type*} {γ : Type*}
+
+variables (a : α) (s t : multiset α) (f g : α → multiset β)
+
+namespace multiset
+
+theorem pmap_congr' {p q : α → Prop} {f : Π a, p a → β} {g : Π a, q a → β}
+  (s : multiset α) {H₁ H₂} :
+  (∀ (a ∈ s) h₁ h₂, f a h₁ = g a h₂) → pmap f s H₁ = pmap g s H₂ := sorry
+
+lemma count_dedup (m : multiset α) (a : α) :
+  m.dedup.count a = if a ∈ m then 1 else 0 :=
+by { rcases m, simp [count_dedup], }
+
+@[simp]
+lemma dedup_bind_dedup (m : multiset α) (f : α → multiset γ) :
+  (m.dedup.bind f).dedup = (m.bind f).dedup :=
+by { ext x, simp_rw [count_dedup, multiset.mem_bind, multiset.mem_dedup], }
+
+@[simp]
+lemma dedup_dedup (m : multiset α) :
+  m.dedup.dedup = m.dedup :=
+by { ext x, simp_rw [count_dedup, multiset.mem_dedup], }
+
+@[simp]
+lemma to_finset_dedup (m : multiset α) :
+  m.dedup.to_finset = m.to_finset :=
+by simp_rw [multiset.to_finset, dedup_dedup]
+
+@[simp]
+lemma to_finset_bind_dedup (m : multiset α) (f : α → multiset γ) :
+  (m.dedup.bind f).to_finset = (m.bind f).to_finset :=
+by simp_rw [multiset.to_finset, dedup_bind_dedup]
+
+end multiset
+
+end
+
+lemma classes_of_roots_zero :
+  classes_of_roots (splits_zero (algebra_map ℚ p.splitting_field)) = 0 :=
+by simp_rw [classes_of_roots, unique_factorization_monoid.normalized_factors_zero,
+  multiset.pmap_zero]
+
+section
+/-
+`monic_normalize` caused following instance defeq problem:
+`(λ (a b : ℚ), classical.prop_decidable (a = b)) = (λ (a b : ℚ), rat.decidable_eq a b)`
+`classical.prop_decidable` is in `monic_normalize`
+-/
+lemma monic_normalize' {K : Type*} [field K] [decidable_eq K] {p : K[X]}
+  (hp0 : p ≠ 0) : monic (normalize p) :=
+begin
+  rw [ne.def, ← leading_coeff_eq_zero, ← ne.def, ← is_unit_iff_ne_zero] at hp0,
+  rw [monic, leading_coeff_normalize, normalize_eq_one],
+  apply hp0,
+end
+
+variables {α : Type*}
+local infix ` ~ᵤ ` : 50 := associated
+variables [cancel_comm_monoid_with_zero α] [decidable_eq α] [normalization_monoid α]
+variables [unique_factorization_monoid α]
+
+open unique_factorization_monoid
+namespace unique_factorization_monoid
+
+lemma associated_iff_normalized_factors_eq_normalized_factors {x y : α} (hx : x ≠ 0) (hy : y ≠ 0) :
+  x ~ᵤ y ↔ normalized_factors x = normalized_factors y :=
+begin
+  split,
+  { intro h,
+    apply le_antisymm; rw [← dvd_iff_normalized_factors_le_normalized_factors],
+    all_goals { simp [*, h.dvd, h.symm.dvd], }, },
+  { intro h,
+    apply associated_of_dvd_dvd; rw [dvd_iff_normalized_factors_le_normalized_factors],
+    all_goals { simp [*, h.le, h.ge], }, },
+end
+
+end unique_factorization_monoid
+
+end
+
+lemma prod_classes_of_roots_map_minpoly_of_monic
+  {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q) (q0 : q ≠ 0)
+  (q_monic : q.monic) :
+  ((classes_of_roots q_splits).map (λ c, minpoly c)).prod = q :=
+begin
+  simp_rw [classes_of_roots, multiset.map_pmap],
+  suffices :
+    (multiset.pmap (λ (q : ℚ[X]) (h : q.splits (algebra_map ℚ p.splitting_field) ∧ irreducible q),
+      q) (unique_factorization_monoid.normalized_factors q) _).prod = q,
+  { refine eq.trans _ this, swap, congr' 1,
+    rw [(λ _ _ _ _ _, iff.rfl : ∀ {α β} {f g : α → β} (a : α), f a = g a ↔ f a = g a)], -- hack
+    -- I wonder if there is a better method
+    refine multiset.pmap_congr' _ (λ d hd _ _, minpoly_class_of_roots_irreducible_of_monic _ _ _),
+    swap, rw [← unique_factorization_monoid.normalize_normalized_factor _ hd],
+    have : d ≠ 0 := (unique_factorization_monoid.irreducible_of_normalized_factor _ hd).ne_zero,
+    exact monic_normalize' this, },
+  rw [multiset.pmap_eq_map, multiset.map_id'],
+  refine eq_of_monic_of_associated _ q_monic
+    (unique_factorization_monoid.normalized_factors_prod q0),
+  refine monic_multiset_prod_of_monic _ _ (λ d hd, monic_normalize' _),
+  exact (unique_factorization_monoid.irreducible_of_factor _ hd).ne_zero,
+end
+
+lemma prod_classes_of_roots_map_minpoly
+  {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q) (q0 : q ≠ 0) :
+  ((classes_of_roots q_splits).map (λ c, minpoly c)).prod = q * C q.leading_coeff⁻¹ :=
+begin
+  rw [← @prod_classes_of_roots_map_minpoly_of_monic p (q * C q.leading_coeff⁻¹)], rotate 1,
+  { exact splits_mul _ q_splits (splits_C _ _), },
+  { refine mul_ne_zero q0 _, rwa [ne.def, C_eq_zero, inv_eq_zero, leading_coeff_eq_zero], },
+  { exact monic_mul_leading_coeff_inv q0, },
+  congr' 2, dsimp only [classes_of_roots],
+  have l0 := inv_ne_zero (leading_coeff_ne_zero.mpr q0),
+  have ql0 := mul_ne_zero q0 (C_eq_zero.not.mpr l0),
+  have : associated q (q * C q.leading_coeff⁻¹),
+  { refine associated_mul_unit_right _ _ _,
+    rwa [is_unit_C, is_unit_iff_ne_zero], },
+  simp_rw [(unique_factorization_monoid.associated_iff_normalized_factors_eq_normalized_factors
+    q0 ql0).mp this],
+end
+
+lemma leading_coeff_mul_prod_classes_of_roots_map_minpoly
+  {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q) :
+  C q.leading_coeff * ((classes_of_roots q_splits).map (λ c, minpoly c)).prod = q :=
+begin
+  rcases eq_or_ne q 0 with rfl | q0, { rw [leading_coeff_zero, C_0, zero_mul], },
+  rw [prod_classes_of_roots_map_minpoly q_splits q0, mul_left_comm, ← C_mul, mul_inv_cancel,
+    C_1, mul_one],
+  exact leading_coeff_ne_zero.mpr q0,
+end
+
+lemma roots_eq_classes_of_roots_bind_orbit
+  {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q) :
+  (q.map (algebra_map ℚ p.splitting_field)).roots =
+    (classes_of_roots q_splits).bind (λ c, c.orbit.to_finset.1) :=
+begin
+  rcases eq_or_ne q 0 with rfl | q0,
+  { rw [classes_of_roots_zero, multiset.zero_bind, polynomial.map_zero, roots_zero], },
+  conv_lhs { rw [← leading_coeff_mul_prod_classes_of_roots_map_minpoly q_splits], },
+  rw [polynomial.map_mul, polynomial.map_multiset_prod, map_C, roots_C_mul, roots_multiset_prod,
+    multiset.bind_map, multiset.bind_map],
+  simp_rw [roots_minpoly_eq_orbit_val],
+  { intros h, simp_rw [multiset.mem_map] at h,
+    obtain ⟨_, ⟨⟨y, _, rfl⟩, h⟩⟩ := h,
+    rw [map_eq_zero] at h,
+    exact minpoly.ne_zero y h, },
+  { rwa [ring_hom.map_ne_zero, leading_coeff_ne_zero], },
+end
+
+lemma root_set_eq_classes_of_roots_bUnion_orbit
+  {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q) :
+  q.root_set p.splitting_field =
+    ⋃ c ∈ ((classes_of_roots q_splits).to_finset : set (conj_classes' p)), (c : _).orbit :=
+begin
+  refine eq.trans _ (eq.trans
+    (congr_arg (λ (m : multiset p.splitting_field), (m.to_finset : set p.splitting_field))
+    (roots_eq_classes_of_roots_bind_orbit q_splits)) _),
+  { exact root_set_def _ _, },
+  convert_to _ = ⋃ (c : conj_classes' p) (H : c ∈ ↑((classes_of_roots q_splits).to_finset)),
+    (c.orbit.to_finset : set p.splitting_field),
+  { simp_rw [set.coe_to_finset], },
+  rw [← coe_bUnion, finset.bUnion, finset.coe_inj, multiset.to_finset_val],
+  convert (multiset.to_finset_bind_dedup _ _).symm,
+end
+-/
 
 end conj_classes'
 
@@ -1645,7 +1908,7 @@ begin
   { intros j, specialize hc j,
     suffices : ((c j).minpoly.map
       (algebra_map ℚ (K s))).eval (algebra_map ℚ (K s) 0) ≠ 0,
-    { rwa [eval_map, ← aeval_def, aeval_algebra_map_apply, ring_hom.map_ne_zero] at this, },
+    { rwa [eval_map, ← aeval_def, aeval_algebra_map_apply, _root_.map_ne_zero] at this, },
     rw [ring_hom.map_zero, conj_classes'.minpoly.map_eq_prod, eval_prod, prod_ne_zero_iff],
     intros a ha,
     rw [eval_sub, eval_X, eval_C, sub_ne_zero],
@@ -1824,7 +2087,7 @@ begin
   convert_to c ^ m * c ^ (p - m) < _,
   { rw [← pow_add, add_tsub_cancel_of_le], exact hmp.le },
   rw [tsub_tsub_tsub_cancel_right m1],
-  refine nat.mul_lt_mul h (pow_le_pow_of_le (nat.le_pred_of_lt hm)) (pow_pos c0 _),
+  exact nat.mul_lt_mul h (pow_le_pow_of_le_left' (nat.le_pred_of_lt hm) _) (pow_pos c0 _),
 end
 
 lemma linear_independent_exp_exists_prime_nat (n : ℕ) (a : ℕ) (c : ℕ) :
