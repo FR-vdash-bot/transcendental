@@ -213,7 +213,7 @@ variables {σ}
 lemma aeval_multiset_sum_polynomial (m : multiset S) (p : R[X]) (hm : m.card = fintype.card σ) :
   aeval_multiset σ R m (sum_polynomial σ p) = (m.map (λ x, polynomial.aeval x p)).sum :=
 begin
-  have : m = finset.univ.val.map (λ i : fin m.to_list.length, m.to_list.nth_le i i.2),
+  have eq_univ_map : m = finset.univ.val.map (λ i : fin m.to_list.length, m.to_list.nth_le i i.2),
   { have to_finset_fin_range : ∀ n, (list.fin_range n).to_finset = finset.univ :=
       λ n, finset.eq_univ_iff_forall.mpr $ λ x, list.mem_to_finset.mpr $ list.mem_fin_range x,
     have : (finset.univ.val : multiset (fin m.to_list.length)) = list.fin_range m.to_list.length,
@@ -224,19 +224,17 @@ begin
     refine congr_arg coe (list.ext_le _ (λ n h₁ h₂, _)),
     { rw [list.length_map, list.length_fin_range], },
     rw [list.nth_le_map', list.nth_le_fin_range], refl, },
-  conv_lhs { rw [this], },
+  conv_lhs { rw [eq_univ_map], },
   rw [aeval_multiset_map'], swap, { rw [fintype.card_fin, multiset.length_to_list, hm], },
   rw [coe_sum_polynomial, map_sum], simp_rw [← polynomial.aeval_alg_hom_apply, aeval_X,
-    function.comp],-- (fintype.equiv_of_card_eq _)],
+    function.comp],
   generalize_proofs h,
   refine (_ : _ =
-    ∑ x : fin m.to_list.length, (polynomial.aeval (m.to_list.nth_le x _)) p).trans _, swap,
-  exact equiv.sum_comp (fintype.equiv_of_card_eq _),
-  congr',
-  
+    ∑ x : fin m.to_list.length, (polynomial.aeval (m.to_list.nth_le x x.2)) p).trans _,
+  { rw [← equiv.sum_comp (fintype.equiv_of_card_eq h)], },
+  rw [finset.sum], apply congr_arg,
+  conv_rhs { rw [eq_univ_map, multiset.map_map], },
 end
-#check list.fin_range
-#check image_multiset
 
 end symmetric_subalgebra
 
