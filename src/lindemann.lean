@@ -692,7 +692,7 @@ intermediate_field.adjoin_root_set_is_splitting_field (is_alg_closed.splits_codo
 
 abbreviation K : Type* := p.splitting_field
 
---instance : number_field (K p) := @number_field.mk (K p) infer_instance sorry sorry
+instance : number_field (K p) := @number_field.mk (K p) infer_instance sorry sorry
 
 instance : is_galois ℚ (K p) := {}
 
