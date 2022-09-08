@@ -508,10 +508,29 @@ begin
   refine mul_le_mul le_max_one_pow le_rfl hcq' hcq,
 end
 
+namespace polynomial
+
+variables {T : Type*} [comm_ring T]
+
+abbreviation aroots (p : T[X]) (S) [comm_ring S] [is_domain S] [algebra T S] : multiset S :=
+(p.map (algebra_map T S)).roots
+
+lemma aroots_def (p : T[X]) (S) [comm_ring S] [is_domain S] [algebra T S] :
+  p.aroots S = (p.map (algebra_map T S)).roots := rfl
+
+lemma aroots_map (p : T[X]) (S) (A) [comm_ring S] [is_domain S] [algebra T S]
+  [comm_ring A] [is_domain A] [algebra S A] [algebra T A] [is_scalar_tower T S A] :
+(p.map (algebra_map T S)).aroots A = p.aroots A :=
+by rw [aroots_def, map_map, ← is_scalar_tower.algebra_map_eq T S A]
+
+end polynomial
+
+open polynomial
+
 lemma exp_polynomial_approx (p : ℤ[X]) (p0 : p.eval 0 ≠ 0) :
   ∃ c, ∀ (q > (eval 0 p).nat_abs) (q_prime : nat.prime q),
     ∃ (n : ℤ) (hn : n % q ≠ 0) (gp : ℤ[X]) (hgp : gp.nat_degree ≤ q - 1 + q * p.nat_degree),
-      ∀ {r : ℂ} (hr : r ∈ (p.map (algebra_map ℤ ℂ)).roots),
+      ∀ {r : ℂ} (hr : r ∈ p.aroots ℂ),
         (n • exp r - q • aeval r gp : ℂ).abs ≤ c ^ q / (q - 1)! :=
 begin
   let p' := λ q, (X ^ (q - 1) * p ^ q).map (algebra_map ℤ ℂ),
@@ -545,9 +564,9 @@ begin
   have c'0 : ∀ r, 0 ≤ c' r := λ r, (P_le p' r (this r)).some_spec.some,
   have Pp'_le : ∀ (r : ℂ) (q ≥ 1), abs (P (p' q) r) ≤ c' r ^ q :=
     λ r, (P_le p' r (this r)).some_spec.some_spec,
-  let c := if h : ((p.map (algebra_map ℤ ℂ)).roots.map c').to_finset.nonempty
-    then ((p.map (algebra_map ℤ ℂ)).roots.map c').to_finset.max' h else 0,
-  have hc : ∀ x ∈ (p.map (algebra_map ℤ ℂ)).roots, c' x ≤ c,
+  let c := if h : ((p.aroots ℂ).map c').to_finset.nonempty
+    then ((p.aroots ℂ).map c').to_finset.max' h else 0,
+  have hc : ∀ x ∈ p.aroots ℂ, c' x ≤ c,
   { intros x hx, dsimp only [c],
     split_ifs,
     { apply finset.le_max', rw [multiset.mem_to_finset],
@@ -578,9 +597,9 @@ begin
   intros r hr,
   have : (X ^ (q - 1) * p ^ q).map (algebra_map ℤ ℂ) = (X - C r) ^ q * (X ^ (q - 1) *
     (C (map (algebra_map ℤ ℂ) p).leading_coeff *
-      (((p.map (algebra_map ℤ ℂ)).roots.erase r).map (λ (a : ℂ), X - C a)).prod) ^ q),
+      (((p.aroots ℂ).erase r).map (λ (a : ℂ), X - C a)).prod) ^ q),
   { rw [mul_left_comm, ← mul_pow, mul_left_comm (_ - _), multiset.prod_map_erase hr],
-    have : (p.map (algebra_map ℤ ℂ)).roots.card = (p.map (algebra_map ℤ ℂ)).nat_degree :=
+    have : (p.aroots ℂ).card = (p.map (algebra_map ℤ ℂ)).nat_degree :=
       splits_iff_card_roots.mp (is_alg_closed.splits _),
     rw [C_leading_coeff_mul_prod_multiset_X_sub_C this, polynomial.map_mul, polynomial.map_pow,
       polynomial.map_pow, map_X], },
@@ -960,8 +979,8 @@ end
 lemma minpoly.injective : function.injective (@minpoly p) :=
 λ x y, minpoly.inj
 
-lemma minpoly.nodup_roots (c : conj_classes' p) :
-  ((minpoly c).map (algebra_map ℚ p.splitting_field)).roots.nodup :=
+lemma minpoly.nodup_aroots (c : conj_classes' p) :
+  ((minpoly c).aroots p.splitting_field).nodup :=
 nodup_roots (minpoly.separable c).map
 
 lemma aeval_minpoly_iff (x : p.splitting_field) (c : conj_classes' p) :
@@ -982,18 +1001,18 @@ begin
   exact aeval_minpoly_iff x c,
 end
 
-lemma roots_minpoly_eq_orbit_val (c : conj_classes' p) :
-  ((minpoly c).map (algebra_map ℚ p.splitting_field)).roots = c.orbit.to_finset.1 :=
+lemma aroots_minpoly_eq_orbit_val (c : conj_classes' p) :
+  (minpoly c).aroots p.splitting_field = c.orbit.to_finset.1 :=
 begin
   simp_rw [← root_set_minpoly_eq_orbit, root_set_def, to_finset_coe,
     multiset.to_finset_val], symmetry, rw [multiset.dedup_eq_self],
   exact nodup_roots ((separable_map _).mpr (minpoly.separable c)),
 end
 
-lemma orbit_eq_mk_roots_minpoly (c : conj_classes' p) :
+lemma orbit_eq_mk_aroots_minpoly (c : conj_classes' p) :
   c.orbit.to_finset =
-    ⟨((minpoly c).map (algebra_map ℚ p.splitting_field)).roots, minpoly.nodup_roots c⟩ :=
-by simpa only [roots_minpoly_eq_orbit_val]
+    ⟨(minpoly c).aroots p.splitting_field, minpoly.nodup_aroots c⟩ :=
+by simpa only [aroots_minpoly_eq_orbit_val]
 
 lemma minpoly.map_eq_prod (c : conj_classes' p) :
   (minpoly c).map (algebra_map ℚ p.splitting_field) = ∏ x in c.orbit.to_finset, (X - C x) :=
@@ -1055,9 +1074,9 @@ begin
   exact inv_ne_zero (leading_coeff_ne_zero.mpr hq.ne_zero),
 end
 
-lemma roots_eq_orbit {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q)
+lemma aroots_eq_orbit {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q)
   (hq : _root_.irreducible q) :
-  (q.map (algebra_map ℚ p.splitting_field)).roots =
+  q.aroots p.splitting_field =
     (class_of_roots_irreducible q_splits hq).orbit.to_finset.1 :=
 begin
   simp_rw [← root_set_eq_orbit q_splits hq, root_set_def, to_finset_coe,
@@ -1214,9 +1233,9 @@ begin
   exact leading_coeff_ne_zero.mpr q0,
 end
 
-lemma roots_eq_classes_of_roots_bind_orbit
+lemma aroots_eq_classes_of_roots_bind_orbit
   {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q) :
-  (q.map (algebra_map ℚ p.splitting_field)).roots =
+  q.aroots p.splitting_field =
     (classes_of_roots q_splits).bind (λ c, c.orbit.to_finset.1) :=
 begin
   rcases eq_or_ne q 0 with rfl | q0,
@@ -1898,7 +1917,7 @@ lemma linear_independent_exp_aux'
   (h : ∑ i, v i * exp (u i) = 0) :
   ∃ (w : ℤ) (w0 : w ≠ 0) (n : ℕ)
     (p : fin n → ℚ[X]) (p0 : ∀ j, (p j).eval 0 ≠ 0) (w' : fin n → ℤ),
-    (w + ∑ j, w' j • ∑ x in ((p j).root_set ℂ).to_finset, exp x : ℂ) = 0 :=
+    (w + ∑ j, w' j • (((p j).aroots ℂ).map (λ x, exp x)).sum : ℂ) = 0 :=
 begin
   let s := Range u v,
   obtain ⟨w, w0, q, hq, w', h⟩ := linear_independent_exp_aux'' u hu u_inj v hv v0 h,
@@ -1918,17 +1937,14 @@ begin
     rw [← ha] at hc, exact hq hc, },
   rw [← h, add_right_inj],
   change ∑ j, (λ i : q, (λ c, w' c •
-    ∑ x in (c.minpoly.root_set ℂ).to_finset, exp x) i) (q.equiv_fin.symm j) = _,
+    ((c.minpoly.aroots ℂ).map (λ x, exp x)).sum) i) (q.equiv_fin.symm j) = _,
   rw [equiv.sum_comp (q.equiv_fin.symm), sum_coe_sort],
   refine sum_congr rfl (λ c hc, _),
-  have : (c.minpoly.root_set ℂ).to_finset =
-    (c.minpoly.root_set (K s)).to_finset.map
-      ⟨_, (algebra_map (K s) ℂ).injective⟩,
-  { simp_rw [root_set_def, to_finset_coe, map_to_finset,
-      is_scalar_tower.algebra_map_eq ℚ (K s) ℂ, ← polynomial.map_map],
-    rw [roots_map], refl,
+  have : c.minpoly.aroots ℂ = (c.minpoly.aroots (K s)).map (algebra_map (K s) ℂ),
+  { change roots _ = _,
+    rw [← roots_map, polynomial.map_map, is_scalar_tower.algebra_map_eq ℚ (K s) ℂ],
     rw [splits_map_iff, ring_hom.id_comp], exact conj_classes'.minpoly.splits c, },
-  simp_rw [this, conj_classes'.root_set_minpoly_eq_orbit, sum_map], refl,
+  simp_rw [this, c.aroots_minpoly_eq_orbit_val, sum_map, multiset.map_map], refl,
 end
 
 lemma linear_independent_exp_aux
@@ -1937,7 +1953,7 @@ lemma linear_independent_exp_aux
   (h : ∑ i, v i * exp (u i) = 0) :
   ∃ (w : ℤ) (w0 : w ≠ 0) (n : ℕ)
     (p : fin n → ℤ[X]) (p0 : ∀ j, (p j).eval 0 ≠ 0) (w' : fin n → ℤ),
-    (w + ∑ j, w' j • ∑ x in ((p j).root_set ℂ).to_finset, exp x : ℂ) = 0 :=
+    (w + ∑ j, w' j • (((p j).aroots ℂ).map (λ x, exp x)).sum : ℂ) = 0 :=
 begin
   obtain ⟨w, w0, n, p, hp, w', h⟩ := linear_independent_exp_aux' u hu u_inj v hv v0 h,
   let b := λ j,
@@ -1954,13 +1970,14 @@ begin
     rw [map_zero, aeval_def, eval₂_eq_eval_map, hb, eval_smul, submonoid.smul_def, smul_ne_zero],
     exact ⟨non_zero_divisors.coe_ne_zero _, hp j⟩, },
   rw [← h, add_right_inj],
-  refine sum_congr rfl (λ j hj, congr_arg _ (sum_congr _ (λ x hx, rfl))),
-  simp_rw [root_set_def, is_scalar_tower.algebra_map_eq ℤ ℚ ℂ, ← polynomial.map_map, hb,
+  refine sum_congr rfl (λ j hj, congr_arg _ (congr_arg _ (multiset.map_congr _ (λ _ _, rfl)))),
+  change roots _ = roots _,
+  simp_rw [is_scalar_tower.algebra_map_eq ℤ ℚ ℂ, ← polynomial.map_map, hb,
     submonoid.smul_def, zsmul_eq_mul, ← C_eq_int_cast, polynomial.map_mul, map_C],
   rw [roots_C_mul], rw [map_ne_zero_iff _ (algebra_map ℚ ℂ).injective, int.cast_ne_zero],
   exact non_zero_divisors.coe_ne_zero _,
 end
-
+/-
 variable {A}
 
 lemma is_integral.smul_aeval (k : R) (x : A) (hx : is_integral R (k • x)) (p : R[X])
@@ -1975,7 +1992,7 @@ begin
   rw [pow_add, ← smul_smul, ← smul_pow],
   exact is_integral_smul _ (hx.pow _),
 end
-
+-/
 section
 
 variables (R₁ K₁ R₂ K₂ : Type*)
@@ -2145,36 +2162,35 @@ begin
   have P0'' : P.map (algebra_map ℤ K) ≠ 0,
   { rwa [polynomial.map_ne_zero_iff _ (algebra_map ℤ K).injective_int], },
   
-  have sum_root_set_K_eq_sum_root_set_ℂ : ∀ j (f : ℂ → ℂ),
-    ∑ (x : K) in ((p j).root_set K).to_finset, f (algebra_map K ℂ x) =
-      ∑ (x : ℂ) in ((p j).root_set ℂ).to_finset, f x,
+  have sum_aroots_K_eq_sum_aroots_ℂ : ∀ j (f : ℂ → ℂ),
+    (((p j).aroots K).map (λ x, f (algebra_map K ℂ x))).sum =
+      (((p j).aroots ℂ).map (λ x, f x)).sum,
   { intros j f,
-    have : ((p j).root_set ℂ).to_finset = ((p j).root_set K).to_finset.map
-        ⟨_, (algebra_map K ℂ).injective⟩,
-    { simp_rw [root_set_def, to_finset_coe, map_to_finset,
-        is_scalar_tower.algebra_map_eq ℤ K ℂ, ← polynomial.map_map],
-      rw [roots_map], refl,
+    have : (p j).aroots ℂ = ((p j).aroots K).map (algebra_map K ℂ),
+    { simp_rw [aroots_def, is_scalar_tower.algebra_map_eq ℤ K ℂ, ← polynomial.map_map],
+      rw [roots_map],
       refine splits_of_splits_of_dvd _ P0'' _ _,
       { rw [is_scalar_tower.algebra_map_eq ℤ ℚ K, ← polynomial.map_map, splits_map_iff,
           ring_hom.id_comp], exact is_splitting_field.splits _ _, },
       simp_rw [P, polynomial.map_prod],
       exact dvd_prod_of_mem _ (mem_univ _), },
-    simp_rw [this, sum_map], refl, },
+    simp_rw [this, multiset.map_map], },
   
-  replace h : (w + ∑ (j : fin m), w' j • ∑ x in ((p j).root_set K).to_finset,
-    exp (algebra_map K ℂ x) : ℂ) = 0,
+  replace h : (w + ∑ (j : fin m), w' j •
+    (((p j).aroots K).map (λ x, exp (algebra_map K ℂ x))).sum : ℂ) = 0,
   { rw [← h], congr', funext j, congr' 1,
-    exact sum_root_set_K_eq_sum_root_set_ℂ _ _, },
+    exact sum_aroots_K_eq_sum_aroots_ℂ j exp, },
   
   obtain ⟨⟨_, k, k0, rfl⟩, hka⟩ := is_localization.exist_integer_multiples_of_finset
-    ((non_zero_divisors ℤ).map (algebra_map ℤ (𝓞 K))) (P.root_set K).to_finset,
+    ((non_zero_divisors ℤ).map (algebra_map ℤ (𝓞 K))) (P.aroots K).to_finset,
   rw [set_like.mem_coe, mem_non_zero_divisors_iff_ne_zero] at k0,
   simp_rw [is_localization.is_integer, subalgebra.range_algebra_map,
     subalgebra.mem_to_subring, subtype.coe_mk, algebra_map_smul] at hka,
-  replace hka : ∀ (p : ℤ[X]) (p_le : p.nat_degree ≤ m) (x ∈ P.root_set K), k ^ m • aeval x p ∈ 𝓞 K,
+  /-
+  replace hka : ∀ (p : ℤ[X]) (p_le : p.nat_degree ≤ m) (x ∈ P.aroots K), k ^ m • aeval x p ∈ 𝓞 K,
   { intros p p_le x hx, refine is_integral.smul_aeval _ _ _ _ _ p_le,
     apply hka, rwa [set.mem_to_finset], },
-  
+  -/
   obtain ⟨c, hc'⟩ := exp_polynomial_approx P P0,
   let N := max (eval 0 P).nat_abs (max k.nat_abs w.nat_abs),
   
@@ -2182,44 +2198,47 @@ begin
   have W0 : 0 ≤ W := I.elim (λ j, (norm_nonneg (w' j)).trans (le_sup' _ (mem_univ j))),
   
   obtain ⟨q, hqN, q_prime, hq⟩ := linear_independent_exp_exists_prime N
-    (W * ↑∑ (i : fin m), ((p i).root_set ℂ).to_finset.card)
+    (W * ↑∑ (i : fin m), ((p i).aroots ℂ).card)
       (∥k∥ ^ (1 + P.nat_degree) * c),
   
   obtain ⟨n, hn, gp, hgp, hc⟩ := hc' q ((le_max_left _ _).trans_lt hqN) q_prime,
   let t := q * (1 + P.nat_degree),
   have H :=
   calc  ∥algebra_map K ℂ ((k ^ t * n * w : ℤ) + q • ∑ j, w' j •
-          ∑ x in ((p j).root_set K).to_finset, k ^ t • aeval x gp)∥
+          (((p j).aroots K).map (λ x, k ^ t • aeval x gp)).sum)∥
       = ∥algebra_map K ℂ (k ^ t • n • w + q • ∑ j, w' j •
-          ∑ x in ((p j).root_set K).to_finset, k ^ t • aeval x gp)∥
+          (((p j).aroots K).map (λ x, k ^ t • aeval x gp)).sum)∥
       : by { simp_rw [zsmul_eq_mul], norm_cast, rw [mul_assoc], }
   ... = ∥algebra_map K ℂ (k ^ t • n • w + q • ∑ j, w' j •
-          ∑ x in ((p j).root_set K).to_finset, k ^ t • aeval x gp) -
+          (((p j).aroots K).map (λ x, k ^ t • aeval x gp)).sum) -
           (k ^ t • n •
-            (w + ∑ j, w' j • ∑ x in ((p j).root_set K).to_finset, exp (algebra_map K ℂ x)))∥
+            (w + ∑ j, w' j • (((p j).aroots K).map (λ x, exp (algebra_map K ℂ x))).sum))∥
       : by rw [h, smul_zero, smul_zero, sub_zero]
   ... = ∥algebra_map K ℂ (k ^ t • n • w + k ^ t • ∑ j, w' j •
-          ∑ x in ((p j).root_set K).to_finset, q • aeval x gp) -
+          (((p j).aroots K).map (λ x, q • aeval x gp)).sum) -
           (k ^ t • n • w +
-            k ^ t • ∑ j, w' j • ∑ x in ((p j).root_set K).to_finset, n • exp (algebra_map K ℂ x))∥
-      : by simp_rw [smul_add, smul_sum, smul_comm n, smul_comm (k ^ t), smul_comm q]
+            k ^ t • ∑ j, w' j • (((p j).aroots K).map (λ x, n • exp (algebra_map K ℂ x))).sum)∥
+      : by simp_rw [smul_add, smul_sum, multiset.smul_sum, multiset.map_map, function.comp,
+          smul_comm n, smul_comm (k ^ t), smul_comm q]
   ... = ∥(k ^ t • n • w + k ^ t • ∑ j, w' j •
-          ∑ x in ((p j).root_set K).to_finset, q • algebra_map K ℂ (aeval x gp) : ℂ) -
+          (((p j).aroots K).map (λ x, q • algebra_map K ℂ (aeval x gp))).sum : ℂ) -
           (k ^ t • n • w +
-            k ^ t • ∑ j, w' j • ∑ x in ((p j).root_set K).to_finset, n • exp (algebra_map K ℂ x))∥
-      : by simp only [map_add, map_nsmul, map_zsmul, ring_hom.map_int_cast, map_sum]
-  ... = ∥k ^ t • ∑ j, w' j • ∑ x in ((p j).root_set K).to_finset,
-          (q • algebra_map K ℂ (aeval x gp) - n • exp (algebra_map K ℂ x))∥
-      : by simp only [add_sub_add_left_eq_sub, ← smul_sub, ← sum_sub_distrib]
-  ... = ∥k ^ t • ∑ j, w' j • ∑ x in ((p j).root_set K).to_finset,
-          (q • aeval (algebra_map K ℂ x) gp - n • exp (algebra_map K ℂ x))∥
+            k ^ t • ∑ j, w' j • (((p j).aroots K).map (λ x, n • exp (algebra_map K ℂ x))).sum)∥
+      : by simp only [map_add, map_nsmul, map_zsmul, _root_.map_int_cast, map_sum,
+          map_multiset_sum, multiset.map_map, function.comp]
+  ... = ∥k ^ t • ∑ j, w' j • (((p j).aroots K).map
+          (λ x, q • algebra_map K ℂ (aeval x gp) - n • exp (algebra_map K ℂ x))).sum∥
+      : by simp only [add_sub_add_left_eq_sub, ← smul_sub, ← sum_sub_distrib,
+          ← multiset.sum_map_sub]
+  ... = ∥k ^ t • ∑ j, w' j • (((p j).aroots K).map
+          (λ x, q • aeval (algebra_map K ℂ x) gp - n • exp (algebra_map K ℂ x))).sum∥
       : by simp_rw [is_scalar_tower.algebra_map_aeval]
-  ... = ∥k ^ t • ∑ j, w' j • ∑ x in ((p j).root_set K).to_finset,
-          (λ x', (q • aeval x' gp - n • exp x')) (algebra_map K ℂ x)∥
+  ... = ∥k ^ t • ∑ j, w' j • (((p j).aroots K).map
+          (λ x, (λ x', (q • aeval x' gp - n • exp x')) (algebra_map K ℂ x))).sum∥
       : rfl
-  ... = ∥k ^ t • ∑ j, w' j • ∑ x in ((p j).root_set ℂ).to_finset, (q • aeval x gp - n • exp x)∥
-      : by { congr', funext, congr' 1, exact sum_root_set_K_eq_sum_root_set_ℂ _ _, }
-  ... ≤ ∥k ^ t∥ * ∑ j, W * ∑ x in ((p j).root_set ℂ).to_finset, c ^ q / ↑(q - 1)!
+  ... = ∥k ^ t • ∑ j, w' j • (((p j).aroots ℂ).map (λ x, q • aeval x gp - n • exp x)).sum∥
+      : by { congr', funext, congr' 1, exact sum_aroots_K_eq_sum_aroots_ℂ _ _, }
+  ... ≤ ∥k ^ t∥ * ∑ j, W * (((p j).aroots ℂ).map (λ x, c ^ q / ↑(q - 1)!)).sum
       : begin
           refine (norm_zsmul_le _ _).trans _,
           refine mul_le_mul_of_nonneg_left _ (norm_nonneg _),
@@ -2227,20 +2246,21 @@ begin
           refine sum_le_sum (λ j hj, _),
           refine (norm_zsmul_le _ _).trans _,
           refine mul_le_mul (le_sup' _ (mem_univ j)) _ (norm_nonneg _) W0,
-          refine (norm_sum_le _ _).trans _,
-          refine sum_le_sum (λ x hx, _),
-          rw [norm_sub_rev],
+          refine (multiset.le_sum_of_subadditive _ _ _ _).trans _, -- golf here
+          { exact norm_zero, }, { exact norm_add_le, },
+          rw [multiset.map_map],
+          refine multiset.sum_le_sum_of_rel_le (multiset.rel_map.2 (multiset.rel_refl_of_refl_on (λ x hx, _))), --golf here
+          rw [function.comp_app, norm_sub_rev],
           refine hc _,
-          rw [set.mem_to_finset,
-            mem_root_set_of_injective (algebra_map ℤ ℂ).injective_int (p0' j)] at hx,
+          rw [mem_roots_map_of_injective (algebra_map ℤ ℂ).injective_int (p0' j)] at hx,
           rw [mem_roots_map_of_injective (algebra_map ℤ ℂ).injective_int P0', ← aeval_def],
           dsimp only [P], rw [map_prod],
           exact prod_eq_zero (mem_univ j) hx,
         end,
   simp_rw [int.norm_eq_abs, int.cast_pow, _root_.abs_pow, ← int.norm_eq_abs,
-    sum_const, ← mul_sum, ← sum_smul, nsmul_eq_mul, mul_comm (∥k∥ ^ t), mul_assoc,
-    mul_comm (_ / _ : ℝ), t, mul_comm q, pow_mul, mul_div (_ ^ _ : ℝ), ← mul_pow,
-    ← mul_assoc, mul_div] at H,
+    multiset.map_const, multiset.sum_repeat, ← mul_sum, ← sum_smul, nsmul_eq_mul,
+    mul_comm (∥k∥ ^ t), mul_assoc, mul_comm (_ / _ : ℝ), t, mul_comm q, pow_mul,
+    mul_div (_ ^ _ : ℝ), ← mul_pow, ← mul_assoc, mul_div] at H,
   replace H := H.trans_lt hq,
   /-
   calc |(w + ∑ j, w' j • ∑ x in ((p j).root_set K).to_finset, exp (algebra_map K ℂ x))| 
