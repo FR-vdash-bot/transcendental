@@ -56,7 +56,7 @@ variables {R : Type*} [comm_semiring R]
 theorem aeval_X_left_apply (p : R[X]) : aeval X p = p :=
 by rw [aeval_X_left, alg_hom.id_apply]
 
-def scale {R : Type*} [comm_semiring R] : R →* R[X] →ₐ[R] R[X] :=
+@[simps] def scale {R : Type*} [comm_semiring R] : R →* R[X] →ₐ[R] R[X] :=
 { to_fun := λ s, aeval (C s * X),
   map_one' := by { rw [C_1, one_mul, aeval_X_left], refl, },
   map_mul' := λ x y, by rw [alg_hom.End_mul, ← aeval_alg_hom, map_mul, map_mul, aeval_C, aeval_X,
@@ -2248,24 +2248,58 @@ begin
   rwa [nat.cast_lt],
 end
 
-lemma sum_map_aroot_smul {R S : Type*} [comm_ring R] [field S] [algebra R S]
-  (p : R[X]) (k : R) (e : ℕ) (n : ℕ) (q : R[X]) (he : q.nat_degree ≤ e) :
-  ((p.aroots S).map (λ x, k ^ e • aeval x q)).sum = 0 :=
+lemma exist_sum_map_aroot_smul_eq {R S : Type*} [comm_ring R] [field S] [algebra R S]
+  (p : R[X]) (k : R) (e : ℕ) (q : R[X])
+  (hk : p.leading_coeff ∣ k) (he : q.nat_degree ≤ e)
+  (inj : function.injective (algebra_map R S))
+  (card_aroots : (p.map (algebra_map R S)).roots.card = p.nat_degree) :
+  ∃ c, ((p.aroots S).map (λ x, k ^ e • aeval x q)).sum = algebra_map R S c :=
 begin
-  have : ∀ x : S, k ^ e • aeval x q = aeval x (aeval (C k * X)
-    (∑ i in range (e + 1), monomial i (k ^ (e - i) * q.coeff i))),
-  { intro x,
-    rw [← aeval_alg_hom_apply, map_mul, aeval_C, aeval_X, ← algebra.smul_def],
+  obtain ⟨k', rfl⟩ := hk, let k := p.leading_coeff * k',
+  have : (λ x : S, k ^ e • aeval x q) = ((λ x, aeval x
+    (∑ i in range (e + 1), monomial i (k' ^ i * k ^ (e - i) * q.coeff i))) ∘
+      (λ x, p.leading_coeff • x)),
+  { funext x, rw [function.comp_app],
     simp_rw [map_sum, aeval_eq_sum_range' (nat.lt_add_one_iff.mpr he), aeval_monomial, smul_sum],
     refine sum_congr rfl (λ i hi, _),
-    rw [← algebra.smul_def, smul_pow, smul_smul, smul_smul, mul_right_comm, ← pow_add,
-      tsub_add_cancel_of_le (nat.lt_add_one_iff.mp (mem_range.mp hi))], },
-  simp_rw [this],
-  have : (p.aroots S).card = fintype.card (fin (p.aroots S).card) := (fintype.card_fin _).symm,
-  simp_rw [← mv_polynomial.symmetric_subalgebra.aeval_multiset_sum_polynomial _ _ this,
+    rw [← algebra.smul_def, smul_pow, smul_smul, smul_smul, mul_comm (_ * _) (_ ^ _),
+      ← mul_assoc, ← mul_assoc, ← mul_pow, ← pow_add,
+      add_tsub_cancel_of_le (nat.lt_add_one_iff.mp (mem_range.mp hi))], },
+  rw [this, ← multiset.map_map _ (λ x, p.leading_coeff • x)],
+  have : ((p.aroots S).map (λ x, p.leading_coeff • x)).card = fintype.card (fin (p.aroots S).card),
+  { rw [multiset.card_map, fintype.card_fin], },
+  rw [← mv_polynomial.symmetric_subalgebra.aeval_multiset_sum_polynomial _ _ this,
     ← mv_polynomial.symmetric_subalgebra.scale_aeval_roots_eq_aeval_multiset],
-  
+  exact ⟨_, rfl⟩,
+  { exact inj, },
+  { rw [fintype.card_fin], exact (card_roots' _).trans (nat_degree_map_le _ _), },
+  { exact card_aroots, }
 end
+
+def exist_sum_map_aroot_smul_eq_some {R S : Type*} [comm_ring R] [field S] [algebra R S]
+  (p : R[X]) (k : R) (e : ℕ) (q : R[X])
+  (hk : p.leading_coeff ∣ k) (he : q.nat_degree ≤ e)
+  (inj : function.injective (algebra_map R S))
+  (card_aroots : (p.map (algebra_map R S)).roots.card = p.nat_degree) :
+  R :=
+(exist_sum_map_aroot_smul_eq p k e q hk he inj card_aroots).some
+
+lemma exist_sum_map_aroot_smul_eq_some_spec {R S : Type*} [comm_ring R] [field S] [algebra R S]
+  (p : R[X]) (k : R) (e : ℕ) (q : R[X])
+  (hk : p.leading_coeff ∣ k) (he : q.nat_degree ≤ e)
+  (inj : function.injective (algebra_map R S))
+  (card_aroots : (p.map (algebra_map R S)).roots.card = p.nat_degree) :
+  ((p.aroots S).map (λ x, k ^ e • aeval x q)).sum =
+    algebra_map R S (exist_sum_map_aroot_smul_eq_some p k e q hk he inj card_aroots) :=
+(exist_sum_map_aroot_smul_eq p k e q hk he inj card_aroots).some_spec
+
+/-
+(((p x).aroots K).map (λ (x : K), (k ^ (1 + P.nat_degree)) ^ q • aeval x gp)).sum
+  ((p.aroots S).map (λ x, k ^ e • aeval x q)).sum =
+  
+(exist_sum_map_aroot_smul_eq (p j) k (P.nat_degree * q) gp hk he inj card_aroots).some_spec
+
+-/
 
 lemma linear_independent_exp
   (u : ι → ℂ) (hu : ∀ i, is_integral ℚ (u i)) (u_inj : function.injective u)
@@ -2289,18 +2323,21 @@ begin
   have P0'' : P.map (algebra_map ℤ K) ≠ 0,
   { rwa [polynomial.map_ne_zero_iff _ (algebra_map ℤ K).injective_int], },
   
+  have splits_p : ∀ j, ((p j).map (algebra_map ℤ K)).splits (ring_hom.id K),
+  { intros j,
+    refine splits_of_splits_of_dvd _ P0'' _ _,
+    { rw [is_scalar_tower.algebra_map_eq ℤ ℚ K, ← polynomial.map_map, splits_map_iff,
+        ring_hom.id_comp], exact is_splitting_field.splits _ _, },
+    simp_rw [P, polynomial.map_prod],
+    exact dvd_prod_of_mem _ (mem_univ _), },
+  
   have sum_aroots_K_eq_sum_aroots_ℂ : ∀ j (f : ℂ → ℂ),
     (((p j).aroots K).map (λ x, f (algebra_map K ℂ x))).sum =
       (((p j).aroots ℂ).map (λ x, f x)).sum,
   { intros j f,
     have : (p j).aroots ℂ = ((p j).aroots K).map (algebra_map K ℂ),
     { simp_rw [aroots_def, is_scalar_tower.algebra_map_eq ℤ K ℂ, ← polynomial.map_map],
-      rw [roots_map],
-      refine splits_of_splits_of_dvd _ P0'' _ _,
-      { rw [is_scalar_tower.algebra_map_eq ℤ ℚ K, ← polynomial.map_map, splits_map_iff,
-          ring_hom.id_comp], exact is_splitting_field.splits _ _, },
-      simp_rw [P, polynomial.map_prod],
-      exact dvd_prod_of_mem _ (mem_univ _), },
+      rw [roots_map], exact splits_p j, },
     simp_rw [this, multiset.map_map], },
   
   replace h : (w + ∑ (j : fin m), w' j •
@@ -2308,12 +2345,14 @@ begin
     h ▸ (congr_arg _ $ congr_arg _ $ funext $
       λ j, congr_arg _ $ sum_aroots_K_eq_sum_aroots_ℂ j exp),
   
+  let k : ℤ := ∏ j, (p j).leading_coeff,
+  /-
   obtain ⟨⟨_, k, k0, rfl⟩, hka⟩ := is_localization.exist_integer_multiples_of_finset
     ((non_zero_divisors ℤ).map (algebra_map ℤ (𝓞 K))) (P.aroots K).to_finset,
   rw [set_like.mem_coe, mem_non_zero_divisors_iff_ne_zero] at k0,
   simp_rw [is_localization.is_integer, subalgebra.range_algebra_map,
     subalgebra.mem_to_subring, subtype.coe_mk, algebra_map_smul] at hka,
-  /-
+  
   replace hka : ∀ (p : ℤ[X]) (p_le : p.nat_degree ≤ m) (x ∈ P.aroots K), k ^ m • aeval x p ∈ 𝓞 K,
   { intros p p_le x hx, refine is_integral.smul_aeval _ _ _ _ _ p_le,
     apply hka, rwa [set.mem_to_finset], },
@@ -2326,10 +2365,24 @@ begin
   
   obtain ⟨q, hqN, q_prime, hq⟩ := linear_independent_exp_exists_prime N
     (W * ↑∑ (i : fin m), ((p i).aroots ℂ).card)
-      (∥k∥ ^ (1 + P.nat_degree) * c),
+      (∥k∥ ^ P.nat_degree * c),
   
   obtain ⟨n, hn, gp, hgp, hc⟩ := hc' q ((le_max_left _ _).trans_lt hqN) q_prime,
-  let t := q * (1 + P.nat_degree),
+  replace hgp : gp.nat_degree ≤ P.nat_degree * q, { rw [mul_comm], exact hgp.trans tsub_le_self, },
+  
+  have sz_h₁ : ∀ j, (p j).leading_coeff ∣ k := λ j, dvd_prod_of_mem _ (mem_univ _),
+  have sz_h₂ := λ j, (nat_degree_eq_card_roots (splits_p j)).symm,
+  simp_rw [map_id, nat_degree_map_eq_of_injective (algebra_map ℤ K).injective_int] at sz_h₂,
+  
+  let sz : fin m → ℤ := λ j, exist_sum_map_aroot_smul_eq_some (p j) k (P.nat_degree * q) gp
+    (sz_h₁ j) hgp (algebra_map ℤ K).injective_int (sz_h₂ j),
+  have hsz : ∀ j, (((p j).aroots K).map (λ (x : K), k ^ (P.nat_degree * q) • aeval x gp)).sum =
+    algebra_map ℤ K (sz j) :=
+    λ j, exist_sum_map_aroot_smul_eq_some_spec (p j) k (P.nat_degree * q) gp
+      (sz_h₁ j) hgp (algebra_map ℤ K).injective_int (sz_h₂ j),
+  
+  let t := P.nat_degree * q,
+  
   have H :=
   calc  ∥algebra_map K ℂ ((k ^ t * n * w : ℤ) + q • ∑ j, w' j •
           (((p j).aroots K).map (λ x, k ^ t • aeval x gp)).sum)∥
