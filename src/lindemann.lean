@@ -51,6 +51,112 @@ lemma map_ne_zero_iff
 end
 
 section
+variables {R : Type*} [comm_semiring R]
+
+theorem aeval_X_left_apply (p : R[X]) : aeval X p = p :=
+by rw [aeval_X_left, alg_hom.id_apply]
+
+def scale {R : Type*} [comm_semiring R] : R →* R[X] →ₐ[R] R[X] :=
+{ to_fun := λ s, aeval (C s * X),
+  map_one' := by { rw [C_1, one_mul, aeval_X_left], refl, },
+  map_mul' := λ x y, by rw [alg_hom.End_mul, ← aeval_alg_hom, map_mul, map_mul, aeval_C, aeval_X,
+    ← C_eq_algebra_map, mul_left_comm, mul_assoc], }
+
+lemma scale_C (s : R) (x : R) : scale s (C x) = C x := aeval_C _ _
+lemma scale_X (s : R) : scale s X = C s * X := aeval_X _
+
+variables {A B : Type*} [field A] [field B]
+
+lemma scale_one_apply (p : A[X]) :
+  scale 1 p = p :=
+by rw [map_one, alg_hom.one_apply]
+
+lemma scale_scale_apply (a b : A) (p : A[X]) :
+  scale a (scale b p) = scale (a * b) p :=
+by rw [map_mul, alg_hom.mul_apply]
+
+lemma scale_inv_scale_apply {s : A} (s0 : s ≠ 0) (p : A[X]) :
+  (scale s⁻¹) (scale s p) = p :=
+by rw [scale_scale_apply, inv_mul_cancel s0, scale_one_apply]
+
+lemma scale_scale_inv_apply {s : A} (s0 : s ≠ 0) (p : A[X]) :
+  (scale s) (scale s⁻¹ p) = p :=
+by rw [scale_scale_apply, mul_inv_cancel s0, scale_one_apply]
+
+def scale_equiv : non_zero_divisors A →* A[X] ≃ₐ[A] A[X] :=
+{ to_fun := λ s,
+  { to_fun := aeval (C (s : A) * X),
+    inv_fun := aeval (C (s : A)⁻¹ * X),
+    left_inv := λ p, scale_inv_scale_apply (mem_non_zero_divisors_iff_ne_zero.mp s.2) p,
+    right_inv := λ p, scale_scale_inv_apply (mem_non_zero_divisors_iff_ne_zero.mp s.2) p,
+    ..scale (s : A), },
+  map_one' := by { ext1 p, rw [alg_equiv.coe_mk, submonoid.coe_one, C_1, one_mul,
+    aeval_X_left_apply, alg_equiv.one_apply], },
+  map_mul' := λ x y, by { ext1 p, rw [alg_equiv.mul_apply, alg_equiv.coe_mk, alg_equiv.coe_mk,
+    alg_equiv.coe_mk, submonoid.coe_mul, map_mul, ← aeval_alg_hom_apply, map_mul, aeval_C, aeval_X,
+    ← C_eq_algebra_map, mul_left_comm, mul_assoc], }, }
+
+ -- why there is nothing like `aeval_injective(_of_injective)`?
+def scale_injective {s : A} (s0 : s ≠ 0) : function.injective (scale s) :=
+(scale_equiv ⟨s, mem_non_zero_divisors_of_ne_zero s0⟩).injective
+
+lemma le_root_multiplicity_scale (p : A[X]) {s : A} (s0 : s ≠ 0) (a : A) :
+  root_multiplicity (s * a) p ≤ root_multiplicity a (scale s p) :=
+begin
+  rcases eq_or_ne p 0 with rfl | p0,
+  { simp_rw [map_zero, root_multiplicity_zero], },
+  rw [root_multiplicity, root_multiplicity, dif_neg p0,
+    dif_neg ((map_ne_zero_iff _ (scale_injective s0)).mpr p0)],
+  simp only [not_not, nat.lt_find_iff, nat.le_find_iff],
+  intros m hm,
+  specialize hm m le_rfl,
+  refine trans _ (_root_.map_dvd (scale s) hm),
+  rw [map_pow, map_sub, scale_C, scale_X],
+  refine pow_dvd_pow_of_dvd ⟨C s, _⟩ _,
+  rw [mul_comm (_ - _), mul_sub, ← C_mul],
+end
+
+lemma root_multiplicity_scale_eq (p : A[X]) {s : A} (s0 : s ≠ 0) (a : A) :
+  root_multiplicity a (scale s p) = root_multiplicity (s * a) p :=
+begin
+  refine antisymm _ (le_root_multiplicity_scale p s0 a),
+  have := (le_root_multiplicity_scale (scale s p) (inv_ne_zero s0) (s * a)),
+  rwa [inv_mul_cancel_left₀ s0, scale_inv_scale_apply s0] at this,
+end
+
+lemma root_multiplicity_div_scale_eq (p : A[X]) {s : A} (s0 : s ≠ 0) (a : A) :
+  root_multiplicity (a / s) (scale s p) = root_multiplicity a p :=
+by rw [root_multiplicity_scale_eq _ s0, mul_div_cancel' _ s0]
+
+lemma count_roots_scale (p : A[X]) {s : A} (s0 : s ≠ 0) (a : A) :
+  (scale s p).roots.count a = p.roots.count (s * a) :=
+by rw [count_roots, count_roots, root_multiplicity_scale_eq _ s0]
+
+lemma count_roots_scale_div (p : A[X]) {s : A} (s0 : s ≠ 0) (a : A) :
+  (scale s p).roots.count (a / s) = p.roots.count a :=
+by rw [count_roots, count_roots, root_multiplicity_div_scale_eq _ s0]
+
+lemma roots_scale_map (p : A[X]) {s : A} (s0 : s ≠ 0) :
+  (scale s p).roots.map (λ x, s * x) = p.roots :=
+begin
+  ext1 x, have : x = s * (x / s) := (mul_div_cancel' _ s0).symm, rw [this],
+  rw [multiset.count_map_eq_count' _ _ (mul_right_injective₀ s0), count_roots_scale _ s0],
+end
+
+lemma roots_scale (p : A[X]) {s : A} (s0 : s ≠ 0) :
+  (scale s p).roots = p.roots.map (λ x, x / s) :=
+begin
+  conv_rhs { rw [← roots_scale_map _ s0, multiset.map_map, function.comp], },
+  simp_rw [mul_div_cancel_left _ s0, multiset.map_id'],
+end
+
+lemma card_roots_scale (p : A[X]) {s : A} (s0 : s ≠ 0) :
+  (scale s p).roots.card = p.roots.card :=
+by rw [roots_scale _ s0, multiset.card_map]
+
+end
+
+section
 variables {R k : Type*} [semiring R]
 
 lemma mem_roots_map_of_injective {p : R[X]}
@@ -713,7 +819,7 @@ intermediate_field.adjoin_root_set_is_splitting_field (is_alg_closed.splits_codo
 
 abbreviation K : Type* := p.splitting_field
 
-instance : number_field (K p) := @number_field.mk (K p) infer_instance sorry sorry
+instance : char_zero (K p) := char_zero_of_injective_algebra_map (algebra_map ℚ (K p)).injective
 
 instance : is_galois ℚ (K p) := {}
 
@@ -2140,6 +2246,25 @@ begin
   { simp_rw [nat.cast_mul, nat.cast_pow, int.cast_nat_abs, ← int.cast_abs,
       abs_eq_self.mpr (int.ceil_nonneg (_root_.abs_nonneg (_ : ℝ)))], },
   rwa [nat.cast_lt],
+end
+
+lemma sum_map_aroot_smul {R S : Type*} [comm_ring R] [field S] [algebra R S]
+  (p : R[X]) (k : R) (e : ℕ) (n : ℕ) (q : R[X]) (he : q.nat_degree ≤ e) :
+  ((p.aroots S).map (λ x, k ^ e • aeval x q)).sum = 0 :=
+begin
+  have : ∀ x : S, k ^ e • aeval x q = aeval x (aeval (C k * X)
+    (∑ i in range (e + 1), monomial i (k ^ (e - i) * q.coeff i))),
+  { intro x,
+    rw [← aeval_alg_hom_apply, map_mul, aeval_C, aeval_X, ← algebra.smul_def],
+    simp_rw [map_sum, aeval_eq_sum_range' (nat.lt_add_one_iff.mpr he), aeval_monomial, smul_sum],
+    refine sum_congr rfl (λ i hi, _),
+    rw [← algebra.smul_def, smul_pow, smul_smul, smul_smul, mul_right_comm, ← pow_add,
+      tsub_add_cancel_of_le (nat.lt_add_one_iff.mp (mem_range.mp hi))], },
+  simp_rw [this],
+  have : (p.aroots S).card = fintype.card (fin (p.aroots S).card) := (fintype.card_fin _).symm,
+  simp_rw [← mv_polynomial.symmetric_subalgebra.aeval_multiset_sum_polynomial _ _ this,
+    ← mv_polynomial.symmetric_subalgebra.scale_aeval_roots_eq_aeval_multiset],
+  
 end
 
 lemma linear_independent_exp
