@@ -11,6 +11,7 @@ import measure_theory.integral.interval_integral
 import measure_theory.integral.set_integral
 import number_theory.number_field
 import ring_theory.algebraic
+import symmetric
 
 noncomputable theory
 
@@ -251,7 +252,7 @@ begin
 end
 
 lemma iterate_derivative_eq_factorial_mul (p : R[X]) (k : ℕ) :
-  ∃ (gp : R[X]) (gp_le : gp.nat_degree ≤ p.nat_degree), (derivative^[k] p) = k! • gp :=
+  ∃ (gp : R[X]) (gp_le : gp.nat_degree ≤ p.nat_degree - k), (derivative^[k] p) = k! • gp :=
 begin
   use ∑ (x : ℕ) in (derivative^[k] p).support, (x + k).choose k • C (p.coeff (x + k)) * X ^ x,
   split,
@@ -261,7 +262,7 @@ begin
     replace hi := le_nat_degree_of_mem_supp _ hi,
     rw [smul_C], refine (nat_degree_C_mul_le _ _).trans _,
     rw [nat_degree_X_pow], refine hi.trans _,
-    exact (nat_degree_iterate_derivative _ _).trans (nat.sub_le _ _), },
+    exact nat_degree_iterate_derivative _ _, },
   conv_lhs { rw [(derivative^[k] p).as_sum_support_C_mul_X_pow], },
   rw [smul_sum], congr', funext i,
   calc C ((derivative^[k] p).coeff i) * X ^ i
@@ -313,7 +314,7 @@ variable (A)
 
 lemma iterate_derivative_large (p : R[X]) (q : ℕ)
   {k : ℕ} (hk : q ≤ k) :
-  ∃ (gp : R[X]) (gp_le : gp.nat_degree ≤ p.nat_degree),
+  ∃ (gp : R[X]) (gp_le : gp.nat_degree ≤ p.nat_degree - k),
     ∀ (r : A), aeval r (derivative^[k] p) = q! • aeval r gp :=
 begin
   obtain ⟨p', p'_le, hp'⟩ := iterate_derivative_eq_factorial_mul p k,
@@ -331,21 +332,21 @@ begin
 end
 
 lemma sum_ideriv_sl (p : R[X]) (q : ℕ) :
-  ∃ (gp : R[X]) (gp_le : gp.nat_degree ≤ p.nat_degree),
+  ∃ (gp : R[X]) (gp_le : gp.nat_degree ≤ p.nat_degree - q),
     ∀ (r : A) {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ q * p'),
       aeval r p.sum_ideriv = q! • aeval r gp :=
 begin
   have h : ∀ k,
-    ∃ (gp : R[X]) (gp_le : gp.nat_degree ≤ p.nat_degree),
+    ∃ (gp : R[X]) (gp_le : gp.nat_degree ≤ p.nat_degree - q),
       ∀ (r : A) {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ q * p'),
     aeval r (derivative^[k] p) = q! • aeval r gp,
   { intros k, cases lt_or_ge k q with hk hk,
     { use 0, rw [nat_degree_zero], use nat.zero_le _,
       intros r p' hp, rw [map_zero, smul_zero, iterate_derivative_small p q r hp hk], },
     { obtain ⟨gp, gp_le, h⟩ := iterate_derivative_large A p q hk,
-      refine ⟨gp, gp_le, λ r p' hp, h r⟩, }, },
+      exact ⟨gp, gp_le.trans (tsub_le_tsub_left hk _), λ r p' hp, h r⟩, }, },
   let c := λ k, (h k).some,
-  have c_le : ∀ k, (c k).nat_degree ≤ p.nat_degree := λ k, (h k).some_spec.some,
+  have c_le : ∀ k, (c k).nat_degree ≤ p.nat_degree - q := λ k, (h k).some_spec.some,
   have hc : ∀ k, ∀ (r : A) {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ q * p'),
     aeval r (derivative^[k] p) = q! • aeval r (c k) := λ k, (h k).some_spec.some_spec,
   refine ⟨(range (p.nat_degree + 1)).sum c, _, _⟩,
@@ -357,7 +358,7 @@ begin
 end
 
 lemma sum_ideriv_sl' (p : R[X]) {q : ℕ} (hq : 0 < q) :
-  ∃ (gp : R[X]) (gp_le : gp.nat_degree ≤ p.nat_degree),
+  ∃ (gp : R[X]) (gp_le : gp.nat_degree ≤ p.nat_degree - q),
     ∀ (inj_amap : function.injective (algebra_map R A))
       (r : A) {p' : A[X]} (hp : p.map (algebra_map R A) = (X - C r) ^ (q - 1) * p'),
       aeval r p.sum_ideriv = (q - 1)! • p'.eval r + q! • aeval r gp :=
@@ -370,15 +371,15 @@ begin
     rw [hp, eval_zero, smul_zero],
     exact λ h, X_sub_C_ne_zero r (pow_eq_zero h), },
   let c := λ k, if hk : q ≤ k then (iterate_derivative_large A p q hk).some else 0,
-  have c_le : ∀ k, (c k).nat_degree ≤ p.nat_degree := λ k,
-    by { dsimp only [c], split_ifs, { exact (iterate_derivative_large A p q h).some_spec.some },
+  have c_le : ∀ k, (c k).nat_degree ≤ p.nat_degree - k := λ k,
+    by { dsimp only [c], split_ifs, { exact (iterate_derivative_large A p q h).some_spec.some, },
       rw [nat_degree_zero], exact nat.zero_le _, },
   have hc : ∀ k (hk : q ≤ k) (r : A), aeval r (derivative^[k] p) = q! • aeval r (c k) := λ k hk,
     by { simp_rw [c, dif_pos hk], exact (iterate_derivative_large A p q hk).some_spec.some_spec, },
   refine ⟨∑ (x : ℕ) in Ico q (p.nat_degree + 1), c x, _, _⟩,
   { refine (nat_degree_sum_le _ _).trans _,
     rw [fold_max_le],
-    exact ⟨nat.zero_le _, λ i hi, c_le i⟩, },
+    exact ⟨nat.zero_le _, λ i hi, (c_le i).trans (tsub_le_tsub_left (mem_Ico.mp hi).1 _)⟩, },
   intros inj_amap r p' hp,
   have : range (p.nat_degree + 1) = range q ∪ Ico q (p.nat_degree + 1),
   { rw [range_eq_Ico, Ico_union_Ico_eq_Ico hq.le],
@@ -529,7 +530,7 @@ open polynomial
 
 lemma exp_polynomial_approx (p : ℤ[X]) (p0 : p.eval 0 ≠ 0) :
   ∃ c, ∀ (q > (eval 0 p).nat_abs) (q_prime : nat.prime q),
-    ∃ (n : ℤ) (hn : n % q ≠ 0) (gp : ℤ[X]) (hgp : gp.nat_degree ≤ q - 1 + q * p.nat_degree),
+    ∃ (n : ℤ) (hn : n % q ≠ 0) (gp : ℤ[X]) (gp_le : gp.nat_degree ≤ q * p.nat_degree - 1),
       ∀ {r : ℂ} (hr : r ∈ p.aroots ℂ),
         (n • exp r - q • aeval r gp : ℂ).abs ≤ c ^ q / (q - 1)! :=
 begin
@@ -591,9 +592,10 @@ begin
     revert h, rwa [imp_false, not_le], },
   obtain ⟨gp, gp'_le, h⟩ := sum_ideriv_sl ℂ (X ^ (q - 1) * p ^ q) q,
   refine ⟨gp, _, _⟩,
-  { refine gp'_le.trans (nat_degree_mul_le.trans _),
-    refine add_le_add _ _,
-    { rw [nat_degree_X_pow], }, rw [nat_degree_pow], },
+  { refine gp'_le.trans ((tsub_le_tsub_right nat_degree_mul_le q).trans _),
+    rw [nat_degree_X_pow, nat_degree_pow, tsub_add_eq_add_tsub (nat.one_le_of_lt q0),
+      tsub_right_comm],
+    apply tsub_le_tsub_right, rw [add_tsub_cancel_left], },
   intros r hr,
   have : (X ^ (q - 1) * p ^ q).map (algebra_map ℤ ℂ) = (X - C r) ^ q * (X ^ (q - 1) *
     (C (map (algebra_map ℤ ℂ) p).leading_coeff *
@@ -1992,7 +1994,7 @@ begin
   rw [pow_add, ← smul_smul, ← smul_pow],
   exact is_integral_smul _ (hx.pow _),
 end
--/
+
 section
 
 variables (R₁ K₁ R₂ K₂ : Type*)
@@ -2065,7 +2067,7 @@ instance : is_localization ((non_zero_divisors ℤ).map (algebra_map ℤ (𝓞 F
 is_localization_of_is_fraction_ring_tower ℤ ℚ (𝓞 F) F
 
 end number_field
-
+-/
 lemma linear_independent_exp_exists_prime_nat'' (c : ℕ) :
   ∃ n > c, c ^ n < (n - 1)! :=
 begin
@@ -2177,9 +2179,9 @@ begin
     simp_rw [this, multiset.map_map], },
   
   replace h : (w + ∑ (j : fin m), w' j •
-    (((p j).aroots K).map (λ x, exp (algebra_map K ℂ x))).sum : ℂ) = 0,
-  { rw [← h], congr', funext j, congr' 1,
-    exact sum_aroots_K_eq_sum_aroots_ℂ j exp, },
+    (((p j).aroots K).map (λ x, exp (algebra_map K ℂ x))).sum : ℂ) = 0 :=
+    h ▸ (congr_arg _ $ congr_arg _ $ funext $
+      λ j, congr_arg _ $ sum_aroots_K_eq_sum_aroots_ℂ j exp),
   
   obtain ⟨⟨_, k, k0, rfl⟩, hka⟩ := is_localization.exist_integer_multiples_of_finset
     ((non_zero_divisors ℤ).map (algebra_map ℤ (𝓞 K))) (P.aroots K).to_finset,
