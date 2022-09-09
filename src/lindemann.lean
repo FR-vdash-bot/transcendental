@@ -634,7 +634,7 @@ end polynomial
 
 open polynomial
 
-lemma exp_polynomial_approx (p : ℤ[X]) (p0 : p.eval 0 ≠ 0) :
+theorem exp_polynomial_approx (p : ℤ[X]) (p0 : p.eval 0 ≠ 0) :
   ∃ c, ∀ (q > (eval 0 p).nat_abs) (prime_q : nat.prime q),
     ∃ (n : ℤ) (hn : n % q ≠ 0) (gp : ℤ[X]) (gp_le : gp.nat_degree ≤ q * p.nat_degree - 1),
       ∀ {r : ℂ} (hr : r ∈ p.aroots ℂ),
@@ -2293,7 +2293,7 @@ lemma exists_sum_map_aroot_smul_eq_some_spec {R S : Type*} [comm_ring R] [field 
     algebra_map R S (exists_sum_map_aroot_smul_eq_some p k e q hk he inj card_aroots) :=
 (exists_sum_map_aroot_smul_eq p k e q hk he inj card_aroots).some_spec
 
-lemma linear_independent_exp
+theorem linear_independent_exp
   (u : ι → ℂ) (hu : ∀ i, is_integral ℚ (u i)) (u_inj : function.injective u)
   (v : ι → ℂ) (hv : ∀ i, is_integral ℚ (v i))
   (h : ∑ i, v i * exp (u i) = 0) :
@@ -2475,7 +2475,7 @@ lemma complex.is_integral_int_I : is_integral ℤ I := by
 lemma complex.is_integral_rat_I : is_integral ℚ I :=
 is_integral_of_is_scalar_tower _ complex.is_integral_int_I
 
-lemma transcendental_exp {a : ℂ} (a0 : a ≠ 0) (ha : is_algebraic ℤ a) : transcendental ℤ (exp a) :=
+theorem transcendental_exp {a : ℂ} (a0 : a ≠ 0) (ha : is_algebraic ℤ a) : transcendental ℤ (exp a) :=
 begin
   intro h,
   have is_integral_a : is_integral ℚ a := is_algebraic_iff_is_integral.mp
@@ -2498,7 +2498,7 @@ begin
   simp,
 end
 
-lemma transcendental_pi : transcendental ℤ real.pi :=
+theorem transcendental_pi : transcendental ℤ real.pi :=
 begin
   intro h,
   have is_integral_pi' : is_integral ℚ real.pi := is_algebraic_iff_is_integral.mp
