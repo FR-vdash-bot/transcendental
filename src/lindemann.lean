@@ -635,7 +635,7 @@ end polynomial
 open polynomial
 
 lemma exp_polynomial_approx (p : ℤ[X]) (p0 : p.eval 0 ≠ 0) :
-  ∃ c, ∀ (q > (eval 0 p).nat_abs) (q_prime : nat.prime q),
+  ∃ c, ∀ (q > (eval 0 p).nat_abs) (prime_q : nat.prime q),
     ∃ (n : ℤ) (hn : n % q ≠ 0) (gp : ℤ[X]) (gp_le : gp.nat_degree ≤ q * p.nat_degree - 1),
       ∀ {r : ℂ} (hr : r ∈ p.aroots ℂ),
         (n • exp r - q • aeval r gp : ℂ).abs ≤ c ^ q / (q - 1)! :=
@@ -682,8 +682,8 @@ begin
         multiset.eq_zero_iff_forall_not_mem] at h, push_neg at h,
       exact absurd (multiset.mem_map_of_mem _ hx) (h (c' x)), }, },
   use c,
-  intros q q_gt q_prime,
-  have q0 : 0 < q := nat.prime.pos q_prime,
+  intros q q_gt prime_q,
+  have q0 : 0 < q := nat.prime.pos prime_q,
   obtain ⟨gp', gp'_le, h'⟩ := sum_ideriv_sl' ℤ (X ^ (q - 1) * p ^ q) q0,
   simp_rw [ring_hom.algebra_map_to_algebra, map_id] at h',
   specialize h' (ring_hom.injective_int _) 0 (by rw [C_0, sub_zero]),
@@ -693,7 +693,7 @@ begin
   { rw [int.add_mod, nsmul_eq_mul, int.mul_mod_right, add_zero, int.mod_mod, ne.def,
       ← int.dvd_iff_mod_eq_zero],
     intros h,
-    replace h := int.prime.dvd_pow' q_prime h, rw [int.coe_nat_dvd_left] at h,
+    replace h := int.prime.dvd_pow' prime_q h, rw [int.coe_nat_dvd_left] at h,
     replace h := nat.le_of_dvd (int.nat_abs_pos_of_ne_zero p0) h,
     revert h, rwa [imp_false, not_le], },
   obtain ⟨gp, gp'_le, h⟩ := sum_ideriv_sl ℂ (X ^ (q - 1) * p ^ q) q,
@@ -2190,17 +2190,17 @@ lemma linear_independent_exp_exists_prime_nat' (n : ℕ) (c : ℕ) :
 begin
   obtain ⟨m, hm, h⟩ := linear_independent_exp_exists_prime_nat'' c,
   let N := max (n + 2) (m + 1),
-  obtain ⟨p, hp', p_prime⟩ := nat.exists_infinite_primes N,
+  obtain ⟨p, hp', prime_p⟩ := nat.exists_infinite_primes N,
   have hnp : n + 1 < p := (nat.add_one_le_iff.mp (le_max_left _ _)).trans_le hp',
   have hnp' : n < p := lt_of_add_lt_of_nonneg_left hnp zero_le_one,
   have hmp : m < p := (nat.add_one_le_iff.mp (le_max_right _ _)).trans_le hp',
-  use [p, hnp', p_prime],
+  use [p, hnp', prime_p],
   cases lt_or_ge m 2 with m2 m2,
   { have : c = 0 := by linarith,
-    rw [this, zero_pow p_prime.pos],
+    rw [this, zero_pow prime_p.pos],
     exact nat.factorial_pos _, },
   rcases nat.eq_zero_or_pos c with rfl | c0,
-  { rw [zero_pow p_prime.pos],
+  { rw [zero_pow prime_p.pos],
     exact nat.factorial_pos _, },
   have m1 : 1 ≤ m := one_le_two.trans m2,
   have one_le_m_sub_one : 1 ≤ m - 1, { rwa [nat.le_sub_iff_right m1], },
@@ -2218,24 +2218,24 @@ end
 lemma linear_independent_exp_exists_prime_nat (n : ℕ) (a : ℕ) (c : ℕ) :
   ∃ p > n, p.prime ∧ a * c ^ p < (p - 1)! :=
 begin
-  obtain ⟨p, hp, p_prime, h⟩ := linear_independent_exp_exists_prime_nat' n (a * c),
-  use [p, hp, p_prime],
+  obtain ⟨p, hp, prime_p, h⟩ := linear_independent_exp_exists_prime_nat' n (a * c),
+  use [p, hp, prime_p],
   refine lt_of_le_of_lt _ h,
   rcases nat.eq_zero_or_pos a with rfl | a0, 
-  { simp_rw [zero_mul, zero_pow' _ p_prime.ne_zero], },
+  { simp_rw [zero_mul, zero_pow' _ prime_p.ne_zero], },
   rw [mul_pow],
   apply nat.mul_le_mul_right,
   convert_to a ^ 1 ≤ a ^ p, { rw [pow_one], },
-  exact nat.pow_le_pow_of_le_right a0 (nat.one_le_of_lt p_prime.pos),
+  exact nat.pow_le_pow_of_le_right a0 (nat.one_le_of_lt prime_p.pos),
 end
 
 lemma linear_independent_exp_exists_prime (n : ℕ) (a : ℝ) (c : ℝ) :
   ∃ p > n, p.prime ∧ a * c ^ p / (p - 1)! < 1 :=
 begin
   simp_rw [div_lt_one (nat.cast_pos.mpr (nat.factorial_pos _))],
-  obtain ⟨p, hp, p_prime, h⟩ :=
+  obtain ⟨p, hp, prime_p, h⟩ :=
     linear_independent_exp_exists_prime_nat n (⌈|a|⌉).nat_abs (⌈|c|⌉).nat_abs,
-  use [p, hp, p_prime],
+  use [p, hp, prime_p],
   have : a * c ^ p ≤ ⌈|a|⌉ * ⌈|c|⌉ ^ p,
   { refine (le_abs_self _).trans _,
     rw [_root_.abs_mul, _root_.abs_pow],
@@ -2293,14 +2293,6 @@ lemma exists_sum_map_aroot_smul_eq_some_spec {R S : Type*} [comm_ring R] [field 
     algebra_map R S (exists_sum_map_aroot_smul_eq_some p k e q hk he inj card_aroots) :=
 (exists_sum_map_aroot_smul_eq p k e q hk he inj card_aroots).some_spec
 
-/-
-(((p x).aroots K).map (λ (x : K), (k ^ (1 + P.nat_degree)) ^ q • aeval x gp)).sum
-  ((p.aroots S).map (λ x, k ^ e • aeval x q)).sum =
-  
-(exist_sum_map_aroot_smul_eq (p j) k (P.nat_degree * q) gp hk he inj card_aroots).some_spec
-
--/
-
 lemma linear_independent_exp
   (u : ι → ℂ) (hu : ∀ i, is_integral ℚ (u i)) (u_inj : function.injective u)
   (v : ι → ℂ) (hv : ∀ i, is_integral ℚ (v i))
@@ -2346,6 +2338,7 @@ begin
       λ j, congr_arg _ $ sum_aroots_K_eq_sum_aroots_ℂ j exp),
   
   let k : ℤ := ∏ j, (p j).leading_coeff,
+  have k0 : k ≠ 0 := prod_ne_zero_iff.mpr (λ j hj, leading_coeff_ne_zero.mpr (p0' j)),
   /-
   obtain ⟨⟨_, k, k0, rfl⟩, hka⟩ := is_localization.exist_integer_multiples_of_finset
     ((non_zero_divisors ℤ).map (algebra_map ℤ (𝓞 K))) (P.aroots K).to_finset,
@@ -2363,11 +2356,11 @@ begin
   let W := sup' univ univ_nonempty (λ j, ∥w' j∥),
   have W0 : 0 ≤ W := I.elim (λ j, (norm_nonneg (w' j)).trans (le_sup' _ (mem_univ j))),
   
-  obtain ⟨q, hqN, q_prime, hq⟩ := linear_independent_exp_exists_prime N
+  obtain ⟨q, hqN, prime_q, hq⟩ := linear_independent_exp_exists_prime N
     (W * ↑∑ (i : fin m), ((p i).aroots ℂ).card)
       (∥k∥ ^ P.nat_degree * c),
   
-  obtain ⟨n, hn, gp, hgp, hc⟩ := hc' q ((le_max_left _ _).trans_lt hqN) q_prime,
+  obtain ⟨n, hn, gp, hgp, hc⟩ := hc' q ((le_max_left _ _).trans_lt hqN) prime_q,
   replace hgp : gp.nat_degree ≤ P.nat_degree * q, { rw [mul_comm], exact hgp.trans tsub_le_self, },
   
   have sz_h₁ : ∀ j, (p j).leading_coeff ∣ k := λ j, dvd_prod_of_mem _ (mem_univ _),
@@ -2378,7 +2371,7 @@ begin
     (sz_h₁ j) hgp (algebra_map ℤ K).injective_int (sz_h₂ j),
   have hsz : ∀ j, (((p j).aroots K).map (λ (x : K), k ^ (P.nat_degree * q) • aeval x gp)).sum =
     algebra_map ℤ K (sz j) :=
-    λ j, exist_sum_map_aroot_smul_eq_some_spec (p j) k (P.nat_degree * q) gp
+    λ j, exists_sum_map_aroot_smul_eq_some_spec (p j) k (P.nat_degree * q) gp
       (sz_h₁ j) hgp (algebra_map ℤ K).injective_int (sz_h₂ j),
   
   let t := P.nat_degree * q,
@@ -2426,10 +2419,10 @@ begin
           refine sum_le_sum (λ j hj, _),
           refine (norm_zsmul_le _ _).trans _,
           refine mul_le_mul (le_sup' _ (mem_univ j)) _ (norm_nonneg _) W0,
-          refine (multiset.le_sum_of_subadditive _ _ _ _).trans _, -- golf here
+          refine (multiset.le_sum_of_subadditive _ _ _ _).trans _, -- wait mathlib
           { exact norm_zero, }, { exact norm_add_le, },
           rw [multiset.map_map],
-          refine multiset.sum_le_sum_of_rel_le (multiset.rel_map.2 (multiset.rel_refl_of_refl_on (λ x hx, _))), --golf here
+          refine multiset.sum_le_sum_of_rel_le (multiset.rel_map.2 (multiset.rel_refl_of_refl_on (λ x hx, _))), -- wait mathlib
           rw [function.comp_app, norm_sub_rev],
           refine hc _,
           rw [mem_roots_map_of_injective (algebra_map ℤ ℂ).injective_int (p0' j)] at hx,
@@ -2440,58 +2433,32 @@ begin
   simp_rw [int.norm_eq_abs, int.cast_pow, _root_.abs_pow, ← int.norm_eq_abs,
     multiset.map_const, multiset.sum_repeat, ← mul_sum, ← sum_smul, nsmul_eq_mul,
     mul_comm (∥k∥ ^ t), mul_assoc, mul_comm (_ / _ : ℝ), t, pow_mul,
-    mul_div (_ ^ _ : ℝ), ← mul_pow, ← mul_assoc, mul_div] at H,
+    mul_div (_ ^ _ : ℝ), ← mul_pow, ← mul_assoc, mul_div, ← pow_mul] at H,
   replace H := H.trans_lt hq,
-  /-
-  calc |(w + ∑ j, w' j • ∑ x in ((p j).root_set K).to_finset, exp (algebra_map K ℂ x))| 
-  calc |k * n * w + p * ∑ w' i * ∑ k * gp x|
-  
-  
-  make that in conj_classes' and explain it eq to
-  -/
-  
+  have : ∑ j, w' j • (((p j).aroots K).map (λ (x : K), k ^ (P.nat_degree * q) • aeval x gp)).sum =
+    algebra_map ℤ K (∑ j, w' j • sz j),
+  { rw [map_sum], congr', funext j, rw [map_zsmul, hsz], },
+  rw [this] at H,
+  have : ∥algebra_map K ℂ (↑(k ^ (P.nat_degree * q) * n * w) +
+    ↑q * algebra_map ℤ K (∑ j, w' j • sz j))∥ =
+    ∥algebra_map ℤ ℂ ((k ^ (P.nat_degree * q) * n * w) + q * (∑ j, w' j • sz j))∥,
+  { simp_rw [is_scalar_tower.algebra_map_apply ℤ K ℂ, algebra_map_int_eq, int.coe_cast_ring_hom],
+    norm_cast, },
+  rw [this, algebra_map_int_eq, int.coe_cast_ring_hom, norm_int, ← int.cast_abs, ← int.cast_one,
+    int.cast_lt, int.abs_lt_one_iff] at H,
+  replace H : (k ^ (P.nat_degree * q) * n * w + q * ∑ (j : fin m), w' j • sz j) % q = 0,
+  { rw [H, int.zero_mod], },
+  rw [int.add_mul_mod_self_left, ← int.dvd_iff_mod_eq_zero] at H,
+  replace H := (int.prime.dvd_mul prime_q H).imp_left
+    (int.prime.dvd_mul prime_q ∘ int.coe_nat_dvd_left.mpr),
+  revert H, rw [int.nat_abs_pow, imp_false], push_neg,
+  exact ⟨⟨λ h, nat.not_dvd_of_pos_of_lt (int.nat_abs_pos_of_ne_zero k0)
+      (((le_max_left _ _).trans (le_max_right _ _)).trans_lt hqN)
+      (nat.prime.dvd_of_dvd_pow prime_q h),
+    λ h, hn ((int.dvd_iff_mod_eq_zero _ _).mp (int.of_nat_dvd_of_dvd_nat_abs h))⟩,
+    nat.not_dvd_of_pos_of_lt (int.nat_abs_pos_of_ne_zero w0)
+      (((le_max_right _ _).trans (le_max_right _ _)).trans_lt hqN)⟩,
 end
-#check is_localization.exist_integer_multiples_of_finset
-#check is_localization.integer_normalization_map_to_map
-#check roots.le_of_dvd
-#check splits
-#exit
-lemma linear_independent_exp (s : finset (integral_closure ℚ ℂ)) :
-  linear_independent (integral_closure ℚ ℂ) (λ x : s, exp x) := by
-{ sorry
-  
-}
-
-lemma linear_independent_exp' (s : finset ℂ) (hs : ∀ x ∈ s, is_algebraic ℤ x) :
-  linear_independent (integral_closure ℚ ℂ) (λ x : s, exp x) := by
-{ have hs' : ∀ x ∈ s, is_integral ℚ x := λ x hx, is_algebraic_iff_is_integral.mp
-    (is_algebraic_of_larger_base_of_injective ((algebra_map ℤ ℚ).injective_int) (hs x hx)),
-  let s' : finset (integral_closure ℚ ℂ) := finset.subtype _ s,
-  have := linear_independent_exp s',
-  refine (linear_independent_equiv' _ _).mp this,
-  { exact
-    { to_fun    := λ ⟨x, hx⟩, ⟨↑x, finset.mem_subtype.mp hx⟩,
-      inv_fun   := λ ⟨x, hx⟩, ⟨⟨x, hs' x hx⟩, finset.mem_subtype.mpr (by rwa [subtype.coe_mk])⟩,
-      left_inv  := λ ⟨x, hx⟩, by rw [subtype.mk_eq_mk, set_like.eta],
-      right_inv := λ ⟨x, hx⟩, by rw [subtype.mk_eq_mk, subtype.coe_mk], }, },
-  funext x, cases x, simp only [equiv.coe_fn_mk, function.comp_app, subtype.coe_mk, coe_coe], }
-
-lemma linear_independent_exp'' (s : finset ℂ) (hs : ∀ x ∈ s, is_algebraic ℤ x)
-  (g : ℂ → ℂ) (hg : ∀ x ∈ s, is_algebraic ℤ (g x)) (h : ∑ x in s, g x * exp x = 0) :
-  ∀ x ∈ s, g x = 0 := by
-{ have hs' : ∀ x ∈ s, is_integral ℚ x := λ x hx, is_algebraic_iff_is_integral.mp
-    (is_algebraic_of_larger_base_of_injective ((algebra_map ℤ ℚ).injective_int) (hs x hx)),
-  have hg' : ∀ x ∈ s, is_integral ℚ (g x) := λ x hx, is_algebraic_iff_is_integral.mp
-    (is_algebraic_of_larger_base_of_injective ((algebra_map ℤ ℚ).injective_int) (hg x hx)),
-  have := linear_independent_exp' s hs,
-  rw [fintype.linear_independent_iff] at this,
-  have h' : ∑ (x : s), (⟨g x.1, hg' x.1 x.2⟩ : integral_closure ℚ ℂ) • exp ↑x = 0,
-  { simp_rw [subalgebra.smul_def, subtype.coe_mk, subtype.val_eq_coe],
-    change ∑ (x : s), (λ (x : ℂ), g x * exp x) ↑x = 0,
-    rwa [sum_coe_sort], },
-  intros x hx,
-  specialize this (λ (x : s), ⟨g x.1, hg' x.1 x.2⟩) h' ⟨x, hx⟩,
-  rwa [← subtype.coe_inj, subtype.coe_mk, subalgebra.coe_zero] at this, }
 
 /-- `X ^ n + a` is monic. -/
 lemma monic_X_pow_add_C {R : Type*} [ring R] (a : R) {n : ℕ} (h : n ≠ 0) : (X ^ n + C a).monic :=
@@ -2503,7 +2470,7 @@ end
 
 lemma complex.is_integral_int_I : is_integral ℤ I := by
 { refine ⟨X^2 + C 1, monic_X_pow_add_C _ two_ne_zero, _⟩,
-  rw [eval₂_add, eval₂_X_pow, eval₂_C, I_sq, ring_hom.eq_int_cast, int.cast_one, add_left_neg], }
+  rw [eval₂_add, eval₂_X_pow, eval₂_C, I_sq, eq_int_cast, int.cast_one, add_left_neg], }
 
 lemma complex.is_integral_rat_I : is_integral ℚ I :=
 is_integral_of_is_scalar_tower _ complex.is_integral_int_I
@@ -2514,17 +2481,19 @@ lemma transcendental_pi : transcendental ℤ real.pi := by
     (is_algebraic_of_larger_base_of_injective ((algebra_map ℤ ℚ).injective_int) h),
   have pi_is_integral : is_integral ℚ (algebra_map ℝ ℂ real.pi) :=
     (is_integral_algebra_map_iff ((algebra_map ℝ ℂ).injective)).mpr pi_is_integral',
-  have hs : ∀ (x : ℂ), x ∈ ({real.pi * I, 0} : finset ℂ) → is_algebraic ℤ x,
-  { intros x hx, simp only [finset.mem_insert, finset.mem_singleton] at hx,
-    rw [is_fraction_ring.is_algebraic_iff ℤ ℚ ℂ, is_algebraic_iff_is_integral],
-    cases hx, { rw [hx], exact is_integral_mul pi_is_integral complex.is_integral_rat_I, },
-    rw [hx], exact is_integral_zero, },
-  have := linear_independent_exp'' {real.pi * I, 0} hs (λ s, 1) _ _ 0 _,
-  { simpa only [one_ne_zero] using this, },
-  { intros x hx, simp only [finset.mem_insert, finset.mem_singleton] at hx,
-    rw [is_fraction_ring.is_algebraic_iff ℤ ℚ ℂ, is_algebraic_iff_is_integral],
-    exact is_integral_one, },
-  { rw [sum_pair (mul_ne_zero (of_real_ne_zero.mpr real.pi_ne_zero) I_ne_zero)],
-    simp_rw [exp_pi_mul_I, exp_zero], ring, },
-  simp only [eq_self_iff_true, or_true, finset.mem_insert, finset.mem_singleton, zero_eq_mul,
-    of_real_eq_zero], }
+  have := linear_independent_exp
+    (λ i : bool, if i = false then real.pi * I else 0) _ _
+    (λ i : bool, 1) _ _,
+  { simpa only [pi.zero_apply, one_ne_zero] using congr_fun this ff, },
+  { intros i, dsimp only, split_ifs,
+    { exact is_integral_mul pi_is_integral complex.is_integral_rat_I, },
+    { exact is_integral_zero, }, },
+  { intros i j, dsimp, split_ifs,
+    all_goals { simp only [to_bool_false_eq_ff, eq_tt_eq_not_eq_ff] at h_1 h_2,
+      cases h_1, cases h_2, },
+    any_goals { simp_rw [eq_self_iff_true, imp_true_iff], },
+    all_goals { simp_rw [tt_eq_ff_eq_false, imp_false, ← ne.def], },
+    any_goals { rw [@ne_comm ℂ 0], },
+    all_goals { rw [mul_ne_zero_iff], norm_cast, simp [real.pi_ne_zero, I_ne_zero], }, },
+  { intros i, dsimp, exact is_integral_one, },
+  simp, }
