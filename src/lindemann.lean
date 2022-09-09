@@ -2475,18 +2475,42 @@ lemma complex.is_integral_int_I : is_integral ℤ I := by
 lemma complex.is_integral_rat_I : is_integral ℚ I :=
 is_integral_of_is_scalar_tower _ complex.is_integral_int_I
 
-lemma transcendental_pi : transcendental ℤ real.pi := by
-{ intro h,
-  have pi_is_integral' : is_integral ℚ real.pi := is_algebraic_iff_is_integral.mp
+lemma transcendental_exp {a : ℂ} (a0 : a ≠ 0) (ha : is_algebraic ℤ a) : transcendental ℤ (exp a) :=
+begin
+  intro h,
+  have is_integral_a : is_integral ℚ a := is_algebraic_iff_is_integral.mp
+    (is_algebraic_of_larger_base_of_injective ((algebra_map ℤ ℚ).injective_int) ha),
+  have is_integral_expa : is_integral ℚ (exp a) := is_algebraic_iff_is_integral.mp
     (is_algebraic_of_larger_base_of_injective ((algebra_map ℤ ℚ).injective_int) h),
-  have pi_is_integral : is_integral ℚ (algebra_map ℝ ℂ real.pi) :=
-    (is_integral_algebra_map_iff ((algebra_map ℝ ℂ).injective)).mpr pi_is_integral',
+  have := linear_independent_exp
+    (λ i : bool, if i = false then a else 0) _ _
+    (λ i : bool, if i = false then 1 else -exp a) _ _,
+  { simpa [ite_eq_iff] using congr_fun this ff, },
+  { intros i, dsimp only, split_ifs,
+    exacts [is_integral_a, is_integral_zero], },
+  { intros i j, dsimp, split_ifs,
+    all_goals { simp only [to_bool_false_eq_ff, eq_tt_eq_not_eq_ff] at h_1 h_2,
+      cases h_1, cases h_2, },
+    any_goals { simp_rw [eq_self_iff_true, imp_true_iff], },
+    all_goals { simp_rw [tt_eq_ff_eq_false, imp_false, ← ne.def], },
+    exacts [a0, a0.symm], },
+  { intros i, dsimp, split_ifs, exacts [is_integral_one, is_integral_neg is_integral_expa], },
+  simp,
+end
+
+lemma transcendental_pi : transcendental ℤ real.pi :=
+begin
+  intro h,
+  have is_integral_pi' : is_integral ℚ real.pi := is_algebraic_iff_is_integral.mp
+    (is_algebraic_of_larger_base_of_injective ((algebra_map ℤ ℚ).injective_int) h),
+  have is_integral_pi : is_integral ℚ (algebra_map ℝ ℂ real.pi) :=
+    (is_integral_algebra_map_iff ((algebra_map ℝ ℂ).injective)).mpr is_integral_pi',
   have := linear_independent_exp
     (λ i : bool, if i = false then real.pi * I else 0) _ _
     (λ i : bool, 1) _ _,
   { simpa only [pi.zero_apply, one_ne_zero] using congr_fun this ff, },
   { intros i, dsimp only, split_ifs,
-    { exact is_integral_mul pi_is_integral complex.is_integral_rat_I, },
+    { exact is_integral_mul is_integral_pi complex.is_integral_rat_I, },
     { exact is_integral_zero, }, },
   { intros i j, dsimp, split_ifs,
     all_goals { simp only [to_bool_false_eq_ff, eq_tt_eq_not_eq_ff] at h_1 h_2,
@@ -2496,4 +2520,5 @@ lemma transcendental_pi : transcendental ℤ real.pi := by
     any_goals { rw [@ne_comm ℂ 0], },
     all_goals { rw [mul_ne_zero_iff], norm_cast, simp [real.pi_ne_zero, I_ne_zero], }, },
   { intros i, dsimp, exact is_integral_one, },
-  simp, }
+  simp,
+end
