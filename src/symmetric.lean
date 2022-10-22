@@ -85,6 +85,11 @@ begin
     multiset.map_map],
 end
 
+end comm_semiring
+
+section comm_ring
+variables [comm_ring R] [fintype σ] [fintype τ]
+
 namespace symmetric_subalgebra
 variables (σ R)
 
@@ -148,7 +153,7 @@ end
 
 end symmetric_subalgebra
 
-end comm_semiring
+end comm_ring
 
 section comm_ring
 variables [comm_ring R] [fintype σ] [comm_ring S] [algebra R S]

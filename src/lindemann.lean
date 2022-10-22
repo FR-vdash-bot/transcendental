@@ -9,13 +9,13 @@ import data.complex.exponential
 import field_theory.polynomial_galois_group
 import measure_theory.integral.interval_integral
 import measure_theory.integral.set_integral
-import number_theory.number_field
 import ring_theory.algebraic
+import algebra.char_p.algebra
 import symmetric
 
 noncomputable theory
 
-open_locale big_operators classical polynomial number_field
+open_locale big_operators classical polynomial
 open finset
 
 namespace nat
@@ -28,27 +28,6 @@ lemma desc_factorial_eq_prod_range (n : ℕ) :
 end nat
 
 namespace polynomial
-
-section
-variables {R S : Type*} [semiring R] [semiring S]
-
-protected
-lemma map_eq_zero_iff
-  {p : R[X]} (f : R →+* S) (hf : function.injective f) :
-  p.map f = 0 ↔ p = 0 :=
-begin
-  split, swap, { intro h, rw [h, polynomial.map_zero], },
-  rw [← polynomial.map_zero f],
-  exact λ h, polynomial.map_injective _ hf h,
-end
-
-protected
-lemma map_ne_zero_iff
-  {p : R[X]} (f : R →+* S) (hf : function.injective f) :
-  p.map f ≠ 0 ↔ p ≠ 0 :=
-(polynomial.map_eq_zero_iff f hf).not
-
-end
 /-
 section
 variables {R : Type*} [comm_semiring R]
@@ -163,7 +142,7 @@ lemma mem_roots_map_of_injective {p : R[X]}
   [comm_ring k] [is_domain k] {f : R →+* k} (hf : function.injective f) {x : k} (hp : p ≠ 0) :
   x ∈ (p.map f).roots ↔ p.eval₂ f x = 0 :=
 begin
-  rw mem_roots ((polynomial.map_ne_zero_iff _ hf).mpr hp),
+  rw mem_roots ((polynomial.map_ne_zero_iff hf).mpr hp),
   dsimp only [is_root],
   rw polynomial.eval_map,
 end
@@ -185,26 +164,6 @@ variables {R : Type*}
 
 section semiring
 variables {S : Type*} [semiring R]
-
-@[simp]
-theorem derivative_map' [semiring S] (p : R[X]) (f : R →+* S) :
-  (p.map f).derivative = p.derivative.map f := by
-{ let n := max p.nat_degree ((map f p).nat_degree),
-  rw [derivative_apply, derivative_apply],
-  rw [sum_over_range' _ _ (n + 1) ((le_max_left _ _).trans_lt (lt_add_one _))],
-  rw [sum_over_range' _ _ (n + 1) ((le_max_right _ _).trans_lt (lt_add_one _))],
-  simp only [polynomial.map_sum, polynomial.map_mul, polynomial.map_C, map_mul, coeff_map,
-    map_nat_cast, polynomial.map_nat_cast, polynomial.map_pow, map_X],
-  all_goals { intro n, rw [zero_mul, C_0, zero_mul], } }
-
-@[simp]
-theorem iterate_derivative_map' [semiring S] (p : R[X]) (f : R →+* S) (k : ℕ):
-  derivative^[k] (p.map f) = (derivative^[k] p).map f :=
-begin
-  induction k with k ih generalizing p,
-  { simp, },
-  { simp [ih], },
-end
 
 lemma sum_ideriv_apply_of_lt' {p : R[X]} {n : ℕ} (hn : p.nat_degree < n) :
   ∑ i in range (p.nat_degree + 1), (derivative^[i] p) =
@@ -253,7 +212,7 @@ theorem sum_ideriv_map {S : Type*} [comm_semiring S] (p : R[X]) (f : R →+* S) 
   rw [sum_ideriv_apply_of_le (le_max_right _ _ : _ ≤ n)],
   simp_rw [polynomial.map_sum],
   apply sum_congr rfl, intros x hx,
-  rw [iterate_derivative_map' p f x], }
+  rw [iterate_derivative_map p f x], }
 
 lemma sum_ideriv_derivative (p : R[X]) :
   p.derivative.sum_ideriv = p.sum_ideriv.derivative := by
@@ -494,7 +453,7 @@ begin
       ← nat.sub_add_comm (nat.one_le_of_lt hq), tsub_le_iff_right] at h,
     exact le_of_add_le_left h,
     { exact pow_ne_zero _ (X_sub_C_ne_zero r), },
-    { rintros rfl, rw [mul_zero, polynomial.map_eq_zero_iff _ inj_amap] at hp, exact p0 hp, }, },
+    { rintros rfl, rw [mul_zero, polynomial.map_eq_zero_iff inj_amap] at hp, exact p0 hp, }, },
   rw [← zero_add ((q - 1)! • p'.eval r)],
   rw [sum_ideriv_apply, map_sum, map_sum, this, sum_union,
     (by rw [tsub_add_cancel_of_le (nat.one_le_of_lt hq)] : range q = range (q - 1 + 1)),
@@ -554,7 +513,7 @@ begin
   convert interval_integral.integral_deriv_eq_sub' (λ (x : ℝ), -(exp (-(x • exp (s.arg • I))) *
     p.sum_ideriv.eval (x • exp (s.arg • I))) / exp (s.arg • I)) (deriv_eq_f p s) _ _,
   any_goals { simp_rw [real_smul, abs_mul_exp_arg_mul_I], },
-  { simp_rw [zero_smul, neg_zero', complex.exp_zero, one_mul], },
+  { simp_rw [zero_smul, neg_zero, complex.exp_zero, one_mul], },
   { intros x hx, apply (differentiable.mul _ _).neg.div_const.differentiable_at,
     apply @differentiable.real_of_complex (λ c : ℂ, exp (-(c * exp (s.arg • I)))),
     refine (differentiable_id.mul_const _).neg.cexp,
@@ -581,11 +540,11 @@ begin
   rw [← sub_div, eq_div_iff (exp_ne_zero _), ← @mul_right_inj' _ _ (exp s) _ _ (exp_ne_zero _),
     neg_sub_neg, mul_sub, ← mul_assoc _ (exp _), ← exp_add, add_neg_self, exp_zero, one_mul] at h,
   replace h := congr_arg complex.abs h,
-  simp_rw [complex.abs_mul, abs_exp, smul_re, I_re, smul_zero, real.exp_zero, mul_one] at h,
+  simp_rw [map_mul, abs_exp, smul_re, I_re, smul_zero, real.exp_zero, mul_one] at h,
   rw [← h, mul_le_mul_left (real.exp_pos _), ← complex.norm_eq_abs,
-    interval_integral.integral_of_le (complex.abs_nonneg _)], clear h,
+    interval_integral.integral_of_le (complex.abs.nonneg _)], clear h,
   convert measure_theory.norm_set_integral_le_of_norm_le_const' _ _ _,
-  { rw [real.volume_Ioc, sub_zero, ennreal.to_real_of_real (complex.abs_nonneg _)], },
+  { rw [real.volume_Ioc, sub_zero, ennreal.to_real_of_real (complex.abs.nonneg _)], },
   { rw [real.volume_Ioc, sub_zero], exact ennreal.of_real_lt_top, },
   { exact measurable_set_Ioc, },
   intros x hx, rw [norm_mul], refine mul_le_mul _ (hc q x hx) (norm_nonneg _) (real.exp_pos _).le,
@@ -601,7 +560,7 @@ begin
   simp_rw [P], obtain ⟨c', hc', h'⟩ := P_le' p s h, clear h,
   let c₁ := max (real.exp s.re) 1,
   let c₂ := max (real.exp s.abs) 1, have h₂ : 0 ≤ real.exp s.abs := (real.exp_pos _).le,
-  let c₃ := max s.abs 1,            have h₃ : 0 ≤ s.abs := abs_nonneg _,
+  let c₃ := max s.abs 1,            have h₃ : 0 ≤ s.abs := complex.abs.nonneg _,
   have hc : ∀ {x : ℝ}, 0 ≤ max x 1 := λ x, zero_le_one.trans (le_max_right _ _),
   use [c₁ * (c₂ * c' * c₃), mul_nonneg hc (mul_nonneg (mul_nonneg hc hc') hc)],
   intros q hq, refine (h' q).trans _, simp_rw [mul_pow],
@@ -645,7 +604,7 @@ begin
     ((p' q).eval (x • exp (s.arg • I))).abs ≤ c ^ q,
   { intros s, dsimp only [p'],
     simp_rw [polynomial.map_mul, polynomial.map_pow, map_X, eval_mul, eval_pow, eval_X,
-      complex.abs_mul, complex.abs_pow, real_smul, complex.abs_mul, abs_exp_of_real_mul_I,
+      map_mul, complex.abs_pow, real_smul, map_mul, abs_exp_of_real_mul_I,
       abs_of_real, mul_one, ← eval₂_eq_eval_map, ← aeval_def],
     have : metric.bounded
       ((λ x, max (|x|) 1 * ((aeval (↑x * exp (↑s.arg * I)) p)).abs) '' set.Ioc 0 (abs s)),
@@ -662,7 +621,7 @@ begin
     specialize h (max (|x|) 1 * (aeval (↑x * exp (↑s.arg * I)) p).abs) (set.mem_image_of_mem _ hx),
     refine le_trans _ (pow_le_pow_of_le_left (norm_nonneg _) h _),
     simp_rw [norm_mul, real.norm_eq_abs, complex.abs_abs, mul_pow],
-    refine mul_le_mul_of_nonneg_right _ (pow_nonneg (complex.abs_nonneg _) _),
+    refine mul_le_mul_of_nonneg_right _ (pow_nonneg (complex.abs.nonneg _) _),
     rw [max_def], split_ifs with h1x,
     { rw [_root_.abs_abs], exact pow_le_pow h1x (nat.sub_le _ _), },
     { push_neg at h1x,
@@ -713,7 +672,7 @@ begin
       polynomial.map_pow, map_X], },
   specialize h r this, clear this,
   rw [le_div_iff (nat.cast_pos.mpr (nat.factorial_pos _) : (0 : ℝ) < _), ← abs_of_nat,
-    ← complex.abs_mul, mul_comm, mul_sub, ← nsmul_eq_mul, ← nsmul_eq_mul, smul_smul,
+    ← map_mul, mul_comm, mul_sub, ← nsmul_eq_mul, ← nsmul_eq_mul, smul_smul,
     mul_comm, nat.mul_factorial_pred q0, ← h],
   rw [nsmul_eq_mul, ← int.cast_coe_nat, ← zsmul_eq_mul, smul_smul, mul_add, ← nsmul_eq_mul,
     ← nsmul_eq_mul, smul_smul, mul_comm, nat.mul_factorial_pred q0, ← h', zsmul_eq_mul,
@@ -1516,15 +1475,7 @@ namespace finsupp
 def const_on {α β : Type*} [has_zero β] (s : finset α) (x : β) : α →₀ β :=
 { support := if x = 0 then ∅ else s,
   to_fun := λ i, if i ∈ s then x else 0,
-  mem_support_to_fun := λ a,
-  begin
-    rcases eq_or_ne x 0 with rfl | x0,
-    all_goals { rw [if_pos rfl] <|> rw [if_neg (λ h, x0 h)], split_ifs, },
-    { exact ⟨false.elim, λ H, H rfl⟩, },
-    { exact ⟨false.elim, λ H, H rfl⟩, },
-    { exact ⟨λ _, x0, λ _, h⟩, },
-    { exact ⟨λ H, absurd H h, λ x, absurd rfl x⟩, },
-  end }
+  mem_support_to_fun := λ a, by split_ifs; simp [h, h_1], }
 
 lemma const_on_apply {α β : Type*} [has_zero β] (s : finset α) (x : β) (i : α) :
   const_on s x i = if i ∈ s then x else 0 := rfl
@@ -1734,7 +1685,7 @@ begin
   haveI := nat.no_zero_smul_divisors ℚ F,
   simp_rw [finsupp.const_on_eq_sum_single, sum_mul, mul_sum, add_monoid_algebra.single_mul_single,
     finsupp.coe_finset_sum, sum_apply, finsupp.single_apply, ← sum_product', sum_ite,
-    sum_const_zero, add_zero, sum_const, smul_ne_zero, mul_ne_zero_iff, iff_true_intro ha,
+    sum_const_zero, add_zero, sum_const, smul_ne_zero_iff, mul_ne_zero_iff, iff_true_intro ha,
     iff_true_intro hb, and_true, ne.def, card_eq_zero, filter_eq_empty_iff], push_neg,
   simp_rw [prod.exists, mem_product, set.mem_to_finset],
   exact conj_classes'.exist_mem_orbit_add_eq_zero (Poly s) x y,
@@ -1782,6 +1733,19 @@ begin
   rw [is_scalar_tower.algebra_map_apply ℚ (⊥ : intermediate_field ℚ (K s)) (K s),
     ← intermediate_field.bot_equiv_symm, alg_equiv.symm_apply_apply], refl,
 end
+
+
+/-
+```
+example : @complex.has_smul ℚ (@rat.smul_division_ring ℝ real.division_ring) =
+  @smul_zero_class.to_has_smul ℚ ℂ _
+    (@distrib_smul.to_smul_zero_class ℚ ℂ _
+      (@rat.distrib_smul ℂ _)) := rfl
+```
+-/
+instance {R} [semiring R] [distrib_smul R ℝ] : distrib_smul R ℂ :=
+{ smul_add := λ r x y, by ext; simp [smul_re, smul_im, smul_add],
+  smul_zero := λ r, by ext; simp [smul_re, smul_im, smul_zero] }
 
 lemma Eval_to_conj_alg_equiv_symm (x : conj_classes' (Poly s) →₀ ℚ) :
   Eval s ℚ ((to_conj_alg_equiv s ℚ).symm x) = ∑ (c : conj_classes' (Poly s)) in x.support,
@@ -2075,7 +2039,7 @@ begin
     suffices : aeval (algebra_map ℤ ℚ 0)
       (is_localization.integer_normalization (non_zero_divisors ℤ) (p j)) ≠ 0,
     { rwa [aeval_algebra_map_apply, map_ne_zero_iff _ (algebra_map ℤ ℚ).injective_int] at this, },
-    rw [map_zero, aeval_def, eval₂_eq_eval_map, hb, eval_smul, submonoid.smul_def, smul_ne_zero],
+    rw [map_zero, aeval_def, eval₂_eq_eval_map, hb, eval_smul, submonoid.smul_def, smul_ne_zero_iff],
     exact ⟨non_zero_divisors.coe_ne_zero _, hp j⟩, },
   rw [← h, add_right_inj],
   refine sum_congr rfl (λ j hj, congr_arg _ (congr_arg _ (multiset.map_congr _ (λ _ _, rfl)))),
@@ -2232,7 +2196,7 @@ end
 lemma linear_independent_exp_exists_prime (n : ℕ) (a : ℝ) (c : ℝ) :
   ∃ p > n, p.prime ∧ a * c ^ p / (p - 1)! < 1 :=
 begin
-  simp_rw [div_lt_one (nat.cast_pos.mpr (nat.factorial_pos _))],
+  simp_rw [@div_lt_one ℝ _ _ _ (nat.cast_pos.mpr (nat.factorial_pos _))],
   obtain ⟨p, hp, prime_p, h⟩ :=
     linear_independent_exp_exists_prime_nat n (⌈|a|⌉).nat_abs (⌈|c|⌉).nat_abs,
   use [p, hp, prime_p],
@@ -2313,7 +2277,7 @@ begin
   have P0' : P ≠ 0,
   { intro h, rw [h, eval_zero] at P0, exact P0 rfl, },
   have P0'' : P.map (algebra_map ℤ K) ≠ 0,
-  { rwa [polynomial.map_ne_zero_iff _ (algebra_map ℤ K).injective_int], },
+  { rwa [polynomial.map_ne_zero_iff (algebra_map ℤ K).injective_int], },
   
   have splits_p : ∀ j, ((p j).map (algebra_map ℤ K)).splits (ring_hom.id K),
   { intros j,
@@ -2405,7 +2369,7 @@ begin
           ← multiset.sum_map_sub]
   ... = ∥k ^ t • ∑ j, w' j • (((p j).aroots K).map
           (λ x, q • aeval (algebra_map K ℂ x) gp - n • exp (algebra_map K ℂ x))).sum∥
-      : by simp_rw [is_scalar_tower.algebra_map_aeval]
+      : by simp_rw [aeval_algebra_map_apply]
   ... = ∥k ^ t • ∑ j, w' j • (((p j).aroots K).map
           (λ x, (λ x', (q • aeval x' gp - n • exp x')) (algebra_map K ℂ x))).sum∥
       : rfl
@@ -2419,10 +2383,9 @@ begin
           refine sum_le_sum (λ j hj, _),
           refine (norm_zsmul_le _ _).trans _,
           refine mul_le_mul (le_sup' _ (mem_univ j)) _ (norm_nonneg _) W0,
-          refine (multiset.le_sum_of_subadditive _ _ _ _).trans _, -- wait mathlib
-          { exact norm_zero, }, { exact norm_add_le, },
+          refine (norm_multiset_sum_le _).trans _,
           rw [multiset.map_map],
-          refine multiset.sum_le_sum_of_rel_le (multiset.rel_map.2 (multiset.rel_refl_of_refl_on (λ x hx, _))), -- wait mathlib
+          refine multiset.sum_map_le_sum_map _ _ (λ x hx, _),
           rw [function.comp_app, norm_sub_rev],
           refine hc _,
           rw [mem_roots_map_of_injective (algebra_map ℤ ℂ).injective_int (p0' j)] at hx,
@@ -2473,7 +2436,7 @@ lemma complex.is_integral_int_I : is_integral ℤ I := by
   rw [eval₂_add, eval₂_X_pow, eval₂_C, I_sq, eq_int_cast, int.cast_one, add_left_neg], }
 
 lemma complex.is_integral_rat_I : is_integral ℚ I :=
-is_integral_of_is_scalar_tower _ complex.is_integral_int_I
+is_integral_of_is_scalar_tower complex.is_integral_int_I
 
 theorem transcendental_exp {a : ℂ} (a0 : a ≠ 0) (ha : is_algebraic ℤ a) : transcendental ℤ (exp a) :=
 begin
