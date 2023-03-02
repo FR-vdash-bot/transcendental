@@ -6,11 +6,13 @@ Authors: Yuyang Zhao
 import analysis.complex.basic
 import analysis.special_functions.polynomials
 import data.complex.exponential
+import data.finsupp.indicator
 import field_theory.polynomial_galois_group
 import measure_theory.integral.interval_integral
 import measure_theory.integral.set_integral
 import ring_theory.algebraic
 import algebra.char_p.algebra
+import gal_conj
 import symmetric
 
 noncomputable theory
@@ -291,21 +293,14 @@ open_locale nat
 variables {R A : Type*} [comm_ring R] [is_domain R]
   [comm_ring A] [is_domain A] [algebra R A]
 
-@[simp] lemma derivative_X_sub_C_pow (r : R) :
-  ∀ (n : ℕ), derivative ((X - C r) ^ n : R[X]) = n • (X - C r) ^ (n - 1)
-| 0       := by rw [pow_zero, nsmul_eq_mul, nat.cast_zero, derivative_one, zero_mul]
-| 1       := by rw [pow_one, nsmul_eq_mul, nat.cast_one, derivative_sub, derivative_X,
-  derivative_C, tsub_self, pow_zero, sub_zero, mul_one]
-| (n + 1 + 1) := by rw [pow_succ, derivative_mul, derivative_X_sub_C_pow, nsmul_eq_mul,
-  nsmul_eq_mul, mul_comm (_ - _), mul_assoc, ← pow_succ', add_tsub_cancel_right,
-  add_tsub_cancel_right, ← add_mul, derivative_sub, derivative_X, derivative_C, sub_zero,
-  nat.cast_add (_ + _), add_comm ↑_, nat.cast_one]
+namespace polynomial
 
 lemma iterate_derivative_X_sub_C_pow (r : R) (k : ℕ) :
   ∀ (n : ℕ), (derivative^[n] ((X - C r) ^ k : R[X])) = k.desc_factorial n • (X - C r) ^ (k - n)
 | 0       := by rw [function.iterate_zero_apply, nat.desc_factorial, one_smul, tsub_zero]
 | (n + 1) := by rw [function.iterate_succ_apply', iterate_derivative_X_sub_C_pow n,
-  derivative_smul, derivative_X_sub_C_pow, nat.desc_factorial, smul_smul, mul_comm, tsub_tsub]
+  derivative_smul, derivative_X_sub_C_pow, nat.desc_factorial, C_eq_nat_cast, ← nsmul_eq_mul,
+  smul_smul, mul_comm, tsub_tsub]
 
 lemma nat_degree_iterate_derivative (p : R[X]) (k : ℕ) :
   (derivative^[k] p).nat_degree ≤ p.nat_degree - k :=
@@ -465,6 +460,8 @@ begin
     intros x hx, rw [mem_inter, mem_Ico, mem_Ico] at hx, exact hx.1.2.not_le hx.2.1, },
 end
 
+end polynomial
+
 open complex
 
 lemma differentiable_at.real_of_complex {e : ℂ → ℂ} {z : ℝ} (h : differentiable_at ℂ e ↑z) :
@@ -514,7 +511,7 @@ begin
     p.sum_ideriv.eval (x • exp (s.arg • I))) / exp (s.arg • I)) (deriv_eq_f p s) _ _,
   any_goals { simp_rw [real_smul, abs_mul_exp_arg_mul_I], },
   { simp_rw [zero_smul, neg_zero, complex.exp_zero, one_mul], },
-  { intros x hx, apply (differentiable.mul _ _).neg.div_const.differentiable_at,
+  { intros x hx, apply ((differentiable.mul _ _).neg.div_const _).differentiable_at,
     apply @differentiable.real_of_complex (λ c : ℂ, exp (-(c * exp (s.arg • I)))),
     refine (differentiable_id.mul_const _).neg.cexp,
     change differentiable ℝ ((λ (y : ℂ), p.sum_ideriv.eval y) ∘
@@ -574,23 +571,6 @@ begin
   refine mul_le_mul le_max_one_pow le_rfl hcq' hcq,
 end
 
-namespace polynomial
-
-variables {T : Type*} [comm_ring T]
-
-abbreviation aroots (p : T[X]) (S) [comm_ring S] [is_domain S] [algebra T S] : multiset S :=
-(p.map (algebra_map T S)).roots
-
-lemma aroots_def (p : T[X]) (S) [comm_ring S] [is_domain S] [algebra T S] :
-  p.aroots S = (p.map (algebra_map T S)).roots := rfl
-
-lemma aroots_map (p : T[X]) (S) (A) [comm_ring S] [is_domain S] [algebra T S]
-  [comm_ring A] [is_domain A] [algebra S A] [algebra T A] [is_scalar_tower T S A] :
-(p.map (algebra_map T S)).aroots A = p.aroots A :=
-by rw [aroots_def, map_map, ← is_scalar_tower.algebra_map_eq T S A]
-
-end polynomial
-
 open polynomial
 
 theorem exp_polynomial_approx (p : ℤ[X]) (p0 : p.eval 0 ≠ 0) :
@@ -622,10 +602,11 @@ begin
     refine le_trans _ (pow_le_pow_of_le_left (norm_nonneg _) h _),
     simp_rw [norm_mul, real.norm_eq_abs, complex.abs_abs, mul_pow],
     refine mul_le_mul_of_nonneg_right _ (pow_nonneg (complex.abs.nonneg _) _),
-    rw [max_def], split_ifs with h1x,
-    { rw [_root_.abs_abs], exact pow_le_pow h1x (nat.sub_le _ _), },
-    { push_neg at h1x,
-      rw [_root_.abs_one, one_pow], exact pow_le_one _ (abs_nonneg _) h1x.le, }, },
+    rw [max_def], split_ifs with hx1,
+    { rw [_root_.abs_one, one_pow],
+      exact pow_le_one _ (abs_nonneg _) hx1, },
+    { push_neg at hx1,
+      rw [_root_.abs_abs], exact pow_le_pow hx1.le (nat.sub_le _ _), }, },
   let c' := λ r, (P_le p' r (this r)).some,
   have c'0 : ∀ r, 0 ≤ c' r := λ r, (P_le p' r (this r)).some_spec.some,
   have Pp'_le : ∀ (r : ℂ) (q ≥ 1), abs (P (p' q) r) ≤ c' r ^ q :=
@@ -839,506 +820,6 @@ quotient.lift_finsupp f h (quotient.mk x) = f x := rfl
 
 end quotient
 
-namespace mul_action
-
-@[to_additive]
-instance (α : Type*) {β : Type*} [monoid α] [fintype α] [mul_action α β] (b : β) :
-  fintype (orbit α b) := set.fintype_range _
-
-@[to_additive]
-instance (α : Type*) {β : Type*} [group α] [fintype α] [mul_action α β]
-  (x : mul_action.orbit_rel.quotient α β) :
-  fintype x.orbit :=
-by { rw [x.orbit_eq_orbit_out quotient.out_eq'], apply_instance, }
-
-end mul_action
-
-namespace minpoly
-
-lemma eq_of_alg_hom_eq {K S T : Type*} [field K] [ring S] [ring T]
-  [algebra K S] [algebra K T]
-  (f : S →ₐ[K] T) (hf : function.injective f)
-  {x : S} {y : T} (hx : is_integral K x) (h : y = f x) :
-  minpoly K x = minpoly K y :=
-minpoly.unique _ _ (minpoly.monic hx)
-  (by rw [h, aeval_alg_hom_apply, minpoly.aeval, alg_hom.map_zero])
-  (λ q q_monic root_q, minpoly.min _ _ q_monic
-    (by rwa [h, aeval_alg_hom_apply, map_eq_zero_iff _ hf] at root_q))
-
-end minpoly
-
-namespace alg_equiv
-variables {A₁ A₂ : Type*}
-
-variables [semiring A₁] [semiring A₂]
-variables [algebra R A₁] [algebra R A₂]
-variables (e : A₁ ≃ₐ[R] A₂)
-
-lemma symm_apply_eq {x y} : e.symm x = y ↔ x = e y :=
-e.to_equiv.symm_apply_eq
-
-end alg_equiv
-
-namespace intermediate_field
-
-variables (F : Type*) [field F] {E : Type*} [field E] [algebra F E] {α : E}
-
-lemma adjoin_root_equiv_adjoin_symm_apply_gen (h : is_integral F α) :
-  (adjoin_root_equiv_adjoin F h).symm (adjoin_simple.gen F α) =
-    adjoin_root.root (minpoly F α) :=
-by rw [alg_equiv.symm_apply_eq, adjoin_root_equiv_adjoin_apply_root]
-
-end intermediate_field
-
-section heq
-universes u₁ u₂ u₃
-
-section
-variables {α α' : Sort u₂} {β : α → Sort u₃} {β' : α' → Sort u₃}
-
-lemma heq.funext {f : Π x : α, β x} {f' : Π x : α', β' x}
-  (hα : α = α') (hβ : β == β') (h : ∀ x x', x == x' → f x == f' x') :
-  f == f' :=
-by { cases hα, cases hβ, exact heq_of_eq (funext (λ x, eq_of_heq (h x x heq.rfl))), }
-
-end
-
-namespace fun_like
-
-variables {F F' : Sort u₁} {α α' : Sort u₂} {β : α → Sort u₃} {β' : α' → Sort u₃}
-  [i : fun_like F α β] [i' : fun_like F' α' β']
-
-lemma ext_heq {f : F} {f' : F'}
-  (h₁ : F = F') (h₂ : α = α') (h₃ : β == β') (h₄ : i == i')
-  (h : ∀ x x', x == x' → f x == f' x') :
-  f == f' := 
-by { unfreezingI { cases h₁, cases h₂, cases h₃, cases h₄, },
-  exact heq_of_eq (fun_like.ext f f' (λ x, eq_of_heq (h x x heq.rfl))), }
-
-lemma congr_heq {f : F} {f' : F'} {x : α} {x' : α'}
-  (h₁ : f == f') (h₂ : x == x') (h₃ : β == β') (h₄ : i == i') :
-  f x == f' x' :=
-by { unfreezingI { cases h₁, cases h₂, cases h₃, cases h₄, }, refl, }
-
-end fun_like
-
-universe u
-
-lemma cast_heq' {α β α' : Sort u} (h : α = β) {a : α} {a' : α'} (h' : a == a') : cast h a == a' :=
-by { cases h, cases h', refl, }
-
-end heq
-
-section gal_conj_classes
-variable (p : ℚ[X])
-
-instance is_gal_conj.setoid := mul_action.orbit_rel p.gal p.splitting_field
-
-abbreviation gal_conj_classes :=
-mul_action.orbit_rel.quotient p.gal p.splitting_field
-
-namespace gal_conj_classes
-
-instance : has_zero (gal_conj_classes p) := ⟨⟦0⟧⟩
-
-lemma equiv_zero_iff (x : p.splitting_field) : x ≈ 0 ↔ x = 0 :=
-begin
-  refine ⟨λ h, _, λ h, by rw [h]⟩,
-  cases h with a ha,
-  simp_rw [← ha, alg_equiv.smul_def, map_zero],
-end
-
-lemma out_eq_zero_iff (x : gal_conj_classes p) : x.out = 0 ↔ x = ⟦0⟧ :=
-by rw [quotient.eq_mk_iff_out, equiv_zero_iff]
-
-lemma zero_out : (0 : gal_conj_classes p).out = 0 :=
-(out_eq_zero_iff p 0).mpr rfl
-
-lemma mk_eq_zero_iff (x : p.splitting_field) : ⟦x⟧ = 0 ↔ x = 0 :=
-by rw [quotient.mk_eq_iff_out, zero_out, equiv_zero_iff]
-
-lemma mk_zero : ⟦(0 : p.splitting_field)⟧ = 0 :=
-(mk_eq_zero_iff p 0).mpr rfl
-
-lemma orbit_zero : (0 : gal_conj_classes p).orbit = {0} :=
-by { ext, rw [mul_action.orbit_rel.quotient.mem_orbit, quotient.mk'_eq_mk, mk_eq_zero_iff], refl, }
-
-instance : has_neg (gal_conj_classes p) := ⟨quotient.lift (λ (x : p.splitting_field), ⟦-x⟧)
-begin
-  rintros _ y ⟨f, rfl⟩, rw [quotient.eq],
-  change -f y ∈ mul_action.orbit p.gal (-y),
-  use f, change f (-y) = -f y, rw [alg_equiv.map_neg],
-end⟩
-
-lemma mk_neg (x : p.splitting_field) : ⟦-x⟧ = -⟦x⟧ := rfl
-
-instance : has_involutive_neg (gal_conj_classes p) :=
-{ neg_neg := λ x, by rw [← quotient.out_eq x, ← mk_neg, ← mk_neg, neg_neg],
-  ..(infer_instance : has_neg (gal_conj_classes p)), }
-
-lemma exist_mem_orbit_add_eq_zero (x y : gal_conj_classes p) :
-  (∃ (a b : p.splitting_field), (a ∈ x.orbit ∧ b ∈ y.orbit) ∧ a + b = 0) ↔ x = -y :=
-begin
-  simp_rw [mul_action.orbit_rel.quotient.mem_orbit, quotient.mk'_eq_mk],
-  split,
-  { rintros ⟨a, b, ⟨rfl, rfl⟩, h⟩,
-    rw [← mk_neg, quotient.eq, add_eq_zero_iff_eq_neg.mp h], },
-  { rintro rfl,
-    refine ⟨-y.out, y.out, _⟩,
-    simp_rw [mk_neg, quotient.out_eq, neg_add_self, eq_self_iff_true, true_and], },
-end
-
-variable {p}
-
-def minpoly : gal_conj_classes p → ℚ[X] :=
-quotient.lift (minpoly ℚ) (λ (a b : p.splitting_field) ⟨f, h⟩, minpoly.eq_of_alg_hom_eq
-  f.symm.to_alg_hom f.symm.injective (is_separable.is_integral ℚ a) (by simp [← h]))
-
-lemma minpoly_mk (x : p.splitting_field) : minpoly ⟦x⟧ = _root_.minpoly ℚ x := rfl
-
-lemma minpoly_out (c : gal_conj_classes p) : _root_.minpoly ℚ c.out = minpoly c :=
-by rw [← c.out_eq, minpoly_mk, c.out_eq]
-
-lemma minpoly.monic (c : gal_conj_classes p) : (minpoly c).monic :=
-by { rw [← c.out_eq, minpoly_mk], exact minpoly.monic (is_separable.is_integral ℚ _), }
-
-lemma minpoly.ne_zero (c : gal_conj_classes p) : minpoly c ≠ 0 :=
-by { rw [← c.out_eq, minpoly_mk], exact minpoly.ne_zero (is_separable.is_integral ℚ _), }
-
-lemma minpoly.irreducible (c : gal_conj_classes p) : irreducible (minpoly c) :=
-by { rw [← c.out_eq, minpoly_mk], exact minpoly.irreducible (is_separable.is_integral ℚ _), }
-
-lemma minpoly.splits (c : gal_conj_classes p) : splits (algebra_map ℚ p.splitting_field) (minpoly c) :=
-by { rw [← c.out_eq, minpoly_mk], exact normal.splits infer_instance c.out, }
-
-lemma minpoly.separable (c : gal_conj_classes p) : separable (minpoly c) :=
-by { rw [← c.out_eq, minpoly_mk], exact is_separable.separable ℚ c.out, }
-
-lemma minpoly.inj {c d : gal_conj_classes p} (h : minpoly c = minpoly d) : c = d :=
-begin
-  let fc := intermediate_field.adjoin_root_equiv_adjoin ℚ (is_separable.is_integral ℚ c.out),
-  let fd := intermediate_field.adjoin_root_equiv_adjoin ℚ (is_separable.is_integral ℚ d.out),
-  let congr_f : adjoin_root (_root_.minpoly ℚ c.out) ≃ₐ[ℚ] adjoin_root (_root_.minpoly ℚ d.out),
-  { rw [minpoly_out, minpoly_out, h], },
-  have congr_f_apply : ∀ x, congr_f x == x,
-  { intro x, change congr_f x == (alg_equiv.refl : _ ≃ₐ[ℚ] _) x,
-    dsimp only [congr_f],
-    refine fun_like.congr_heq _ heq.rfl _ _,
-    { simp_rw [eq_mpr_eq_cast, cast_cast],
-      refine cast_heq' _ (fun_like.ext_heq _ _ _ _ _),
-      any_goals { rw [minpoly_out, h], },
-      rintros x₁ x₂ rfl, refl, },
-    all_goals { rw [minpoly_out, minpoly_out, h], }, },
-  let f' := fc.symm.trans (congr_f.trans fd),
-  let f := f'.lift_normal p.splitting_field,
-  rw [← quotient.out_equiv_out],
-  refine ⟨f.symm, _⟩,
-  dsimp only [f, alg_equiv.smul_def],
-  simp_rw [alg_equiv.symm_apply_eq, ← intermediate_field.adjoin_simple.algebra_map_gen ℚ c.out,
-    ← intermediate_field.adjoin_simple.algebra_map_gen ℚ d.out, alg_equiv.lift_normal_commutes],
-  apply congr_arg,
-  simp_rw [f', alg_equiv.trans_apply, ← fd.symm_apply_eq, fc, fd,
-    intermediate_field.adjoin_root_equiv_adjoin_symm_apply_gen],
-  refine eq_of_heq (heq.trans _ (congr_f_apply _).symm),
-  rw [minpoly_out, minpoly_out, h],
-end
-
-lemma minpoly.injective : function.injective (@minpoly p) :=
-λ x y, minpoly.inj
-
-lemma minpoly.nodup_aroots (c : gal_conj_classes p) :
-  ((minpoly c).aroots p.splitting_field).nodup :=
-nodup_roots (minpoly.separable c).map
-
-lemma aeval_minpoly_iff (x : p.splitting_field) (c : gal_conj_classes p) :
-  aeval x (minpoly c) = 0 ↔ ⟦x⟧ = c :=
-begin
-  symmetry, split, { rintros rfl, exact minpoly.aeval _ _, },
-  intros h,
-  apply minpoly.inj,
-  rw [minpoly_mk, ← minpoly.eq_of_irreducible (minpoly.irreducible c) h],
-  rw [(minpoly.monic c).leading_coeff, inv_one, C_1, mul_one],
-end
-
-lemma root_set_minpoly_eq_orbit (c : gal_conj_classes p) :
-  (minpoly c).root_set p.splitting_field = c.orbit :=
-begin
-  ext x, rw [mul_action.orbit_rel.quotient.mem_orbit, quotient.mk'_eq_mk],
-  simp_rw [mem_root_set_iff (minpoly.ne_zero c)],
-  exact aeval_minpoly_iff x c,
-end
-
-lemma aroots_minpoly_eq_orbit_val (c : gal_conj_classes p) :
-  (minpoly c).aroots p.splitting_field = c.orbit.to_finset.1 :=
-begin
-  simp_rw [← root_set_minpoly_eq_orbit, root_set_def, to_finset_coe,
-    multiset.to_finset_val], symmetry, rw [multiset.dedup_eq_self],
-  exact nodup_roots ((separable_map _).mpr (minpoly.separable c)),
-end
-
-lemma orbit_eq_mk_aroots_minpoly (c : gal_conj_classes p) :
-  c.orbit.to_finset =
-    ⟨(minpoly c).aroots p.splitting_field, minpoly.nodup_aroots c⟩ :=
-by simpa only [aroots_minpoly_eq_orbit_val]
-
-lemma minpoly.map_eq_prod (c : gal_conj_classes p) :
-  (minpoly c).map (algebra_map ℚ p.splitting_field) = ∏ x in c.orbit.to_finset, (X - C x) :=
-begin
-  simp_rw [← root_set_minpoly_eq_orbit, prod_eq_multiset_prod, root_set_def,
-    finset.to_finset_coe, multiset.to_finset_val],
-  rw [multiset.dedup_eq_self.mpr (nodup_roots _),
-    polynomial.prod_multiset_X_sub_C_of_monic_of_roots_card_eq (monic.map _ _)],
-  { rw [splits_iff_card_roots.mp], rw [splits_id_iff_splits], exact minpoly.splits c, },
-  { exact minpoly.monic c, },
-  { exact (minpoly.separable c).map, },
-end
-/-
-def class_of_roots_irreducible
-  {q : ℚ[X]} (q_splits : q.splits (algebra_map ℚ p.splitting_field))
-  (hq : _root_.irreducible q) : gal_conj_classes p :=
-⟦root_of_splits (algebra_map ℚ p.splitting_field) q_splits (degree_pos_of_irreducible hq).ne'⟧
-
-lemma minpoly_class_of_roots_irreducible_of_monic
-  {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q)
-  (hq : _root_.irreducible q) (q_monic : q.monic) :
-  (class_of_roots_irreducible q_splits hq).minpoly = q :=
-begin
-  dsimp only [class_of_roots_irreducible], rw [minpoly_mk],
-  exact (minpoly.eq_of_irreducible_of_monic hq (map_root_of_splits _ _ _) q_monic).symm,
-end
-
-lemma minpoly_class_of_roots_irreducible
-  {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q)
-  (hq : _root_.irreducible q) :
-  (class_of_roots_irreducible q_splits hq).minpoly = q * C q.leading_coeff⁻¹ :=
-begin
-  dsimp only [class_of_roots_irreducible], rw [minpoly_mk],
-  exact (minpoly.eq_of_irreducible hq (map_root_of_splits _ _ _)).symm,
-end
-
-lemma class_of_roots_irreducible_minpoly (c : gal_conj_classes p)
-  (h₁ : c.minpoly.splits (algebra_map ℚ p.splitting_field)) (h₂ : irreducible c.minpoly) :
-  class_of_roots_irreducible h₁ h₂ = c :=
-begin
-  dsimp only [class_of_roots_irreducible], apply minpoly.inj, rw [minpoly_mk],
-  exact minpoly_class_of_roots_irreducible_of_monic _ _ (minpoly.monic c),
-end
-
-lemma root_set_C_mul (q : ℚ[X]) {a : ℚ} (a0 : a ≠ 0) :
-  q.root_set p.splitting_field = (C a * q).root_set p.splitting_field :=
-by { simp_rw [root_set, polynomial.map_mul, map_C,
-  roots_C_mul _ (((algebra_map ℚ p.splitting_field).map_ne_zero).mpr a0)], }
-
-lemma root_set_mul_C (q : ℚ[X]) {a : ℚ} (a0 : a ≠ 0) :
-  q.root_set p.splitting_field = (q * C a).root_set p.splitting_field :=
-by { rw [mul_comm], exact root_set_C_mul q a0, }
-
-lemma root_set_eq_orbit {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q)
-  (hq : _root_.irreducible q) :
-  q.root_set p.splitting_field = (class_of_roots_irreducible q_splits hq).orbit :=
-begin
-  rw [← root_set_minpoly_eq_orbit, minpoly_class_of_roots_irreducible, root_set_mul_C],
-  exact inv_ne_zero (leading_coeff_ne_zero.mpr hq.ne_zero),
-end
-
-lemma aroots_eq_orbit {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q)
-  (hq : _root_.irreducible q) :
-  q.aroots p.splitting_field =
-    (class_of_roots_irreducible q_splits hq).orbit.to_finset.1 :=
-begin
-  simp_rw [← root_set_eq_orbit q_splits hq, root_set_def, to_finset_coe,
-    multiset.to_finset_val], symmetry, rw [multiset.dedup_eq_self],
-  exact nodup_roots ((separable_map _).mpr hq.separable),
-end
-
-def classes_of_roots {q : ℚ[X]} (q_splits : q.splits (algebra_map ℚ p.splitting_field)) :
-  multiset (gal_conj_classes p) :=
-(unique_factorization_monoid.normalized_factors q).pmap
-  (λ (q : ℚ[X]) (hq : q.splits (algebra_map ℚ p.splitting_field) ∧ irreducible q),
-    class_of_roots_irreducible hq.1 hq.2)
-  (λ d hd,
-  begin
-    refine ⟨_, unique_factorization_monoid.irreducible_of_normalized_factor _ hd⟩,
-    have d_dvd_q := unique_factorization_monoid.dvd_of_mem_normalized_factors hd,
-    refine splits_of_splits_of_dvd _ _ q_splits d_dvd_q,
-    rintros rfl, simpa [unique_factorization_monoid.normalized_factors_zero] using hd,
-  end)
-
-section
-
-open list multiset
-
-variables {α : Type*} {β : Type*} {γ : Type*}
-
-variables (a : α) (s t : multiset α) (f g : α → multiset β)
-
-namespace multiset
-
-theorem pmap_congr' {p q : α → Prop} {f : Π a, p a → β} {g : Π a, q a → β}
-  (s : multiset α) {H₁ H₂} :
-  (∀ (a ∈ s) h₁ h₂, f a h₁ = g a h₂) → pmap f s H₁ = pmap g s H₂ := sorry
-
-lemma count_dedup (m : multiset α) (a : α) :
-  m.dedup.count a = if a ∈ m then 1 else 0 :=
-by { rcases m, simp [count_dedup], }
-
-@[simp]
-lemma dedup_bind_dedup (m : multiset α) (f : α → multiset γ) :
-  (m.dedup.bind f).dedup = (m.bind f).dedup :=
-by { ext x, simp_rw [count_dedup, multiset.mem_bind, multiset.mem_dedup], }
-
-@[simp]
-lemma dedup_dedup (m : multiset α) :
-  m.dedup.dedup = m.dedup :=
-by { ext x, simp_rw [count_dedup, multiset.mem_dedup], }
-
-@[simp]
-lemma to_finset_dedup (m : multiset α) :
-  m.dedup.to_finset = m.to_finset :=
-by simp_rw [multiset.to_finset, dedup_dedup]
-
-@[simp]
-lemma to_finset_bind_dedup (m : multiset α) (f : α → multiset γ) :
-  (m.dedup.bind f).to_finset = (m.bind f).to_finset :=
-by simp_rw [multiset.to_finset, dedup_bind_dedup]
-
-end multiset
-
-end
-
-lemma classes_of_roots_zero :
-  classes_of_roots (splits_zero (algebra_map ℚ p.splitting_field)) = 0 :=
-by simp_rw [classes_of_roots, unique_factorization_monoid.normalized_factors_zero,
-  multiset.pmap_zero]
-
-section
-/-
-`monic_normalize` caused following instance defeq problem:
-`(λ (a b : ℚ), classical.prop_decidable (a = b)) = (λ (a b : ℚ), rat.decidable_eq a b)`
-`classical.prop_decidable` is in `monic_normalize`
--/
-lemma monic_normalize' {K : Type*} [field K] [decidable_eq K] {p : K[X]}
-  (hp0 : p ≠ 0) : monic (normalize p) :=
-begin
-  rw [ne.def, ← leading_coeff_eq_zero, ← ne.def, ← is_unit_iff_ne_zero] at hp0,
-  rw [monic, leading_coeff_normalize, normalize_eq_one],
-  apply hp0,
-end
-
-variables {α : Type*}
-local infix ` ~ᵤ ` : 50 := associated
-variables [cancel_comm_monoid_with_zero α] [decidable_eq α] [normalization_monoid α]
-variables [unique_factorization_monoid α]
-
-open unique_factorization_monoid
-namespace unique_factorization_monoid
-
-lemma associated_iff_normalized_factors_eq_normalized_factors {x y : α} (hx : x ≠ 0) (hy : y ≠ 0) :
-  x ~ᵤ y ↔ normalized_factors x = normalized_factors y :=
-begin
-  split,
-  { intro h,
-    apply le_antisymm; rw [← dvd_iff_normalized_factors_le_normalized_factors],
-    all_goals { simp [*, h.dvd, h.symm.dvd], }, },
-  { intro h,
-    apply associated_of_dvd_dvd; rw [dvd_iff_normalized_factors_le_normalized_factors],
-    all_goals { simp [*, h.le, h.ge], }, },
-end
-
-end unique_factorization_monoid
-
-end
-
-lemma prod_classes_of_roots_map_minpoly_of_monic
-  {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q) (q0 : q ≠ 0)
-  (q_monic : q.monic) :
-  ((classes_of_roots q_splits).map (λ c, minpoly c)).prod = q :=
-begin
-  simp_rw [classes_of_roots, multiset.map_pmap],
-  suffices :
-    (multiset.pmap (λ (q : ℚ[X]) (h : q.splits (algebra_map ℚ p.splitting_field) ∧ irreducible q),
-      q) (unique_factorization_monoid.normalized_factors q) _).prod = q,
-  { refine eq.trans _ this, swap, congr' 1,
-    rw [(λ _ _ _ _ _, iff.rfl : ∀ {α β} {f g : α → β} (a : α), f a = g a ↔ f a = g a)], -- hack
-    -- I wonder if there is a better method
-    refine multiset.pmap_congr' _ (λ d hd _ _, minpoly_class_of_roots_irreducible_of_monic _ _ _),
-    swap, rw [← unique_factorization_monoid.normalize_normalized_factor _ hd],
-    have : d ≠ 0 := (unique_factorization_monoid.irreducible_of_normalized_factor _ hd).ne_zero,
-    exact monic_normalize' this, },
-  rw [multiset.pmap_eq_map, multiset.map_id'],
-  refine eq_of_monic_of_associated _ q_monic
-    (unique_factorization_monoid.normalized_factors_prod q0),
-  refine monic_multiset_prod_of_monic _ _ (λ d hd, monic_normalize' _),
-  exact (unique_factorization_monoid.irreducible_of_factor _ hd).ne_zero,
-end
-
-lemma prod_classes_of_roots_map_minpoly
-  {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q) (q0 : q ≠ 0) :
-  ((classes_of_roots q_splits).map (λ c, minpoly c)).prod = q * C q.leading_coeff⁻¹ :=
-begin
-  rw [← @prod_classes_of_roots_map_minpoly_of_monic p (q * C q.leading_coeff⁻¹)], rotate 1,
-  { exact splits_mul _ q_splits (splits_C _ _), },
-  { refine mul_ne_zero q0 _, rwa [ne.def, C_eq_zero, inv_eq_zero, leading_coeff_eq_zero], },
-  { exact monic_mul_leading_coeff_inv q0, },
-  congr' 2, dsimp only [classes_of_roots],
-  have l0 := inv_ne_zero (leading_coeff_ne_zero.mpr q0),
-  have ql0 := mul_ne_zero q0 (C_eq_zero.not.mpr l0),
-  have : associated q (q * C q.leading_coeff⁻¹),
-  { refine associated_mul_unit_right _ _ _,
-    rwa [is_unit_C, is_unit_iff_ne_zero], },
-  simp_rw [(unique_factorization_monoid.associated_iff_normalized_factors_eq_normalized_factors
-    q0 ql0).mp this],
-end
-
-lemma leading_coeff_mul_prod_classes_of_roots_map_minpoly
-  {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q) :
-  C q.leading_coeff * ((classes_of_roots q_splits).map (λ c, minpoly c)).prod = q :=
-begin
-  rcases eq_or_ne q 0 with rfl | q0, { rw [leading_coeff_zero, C_0, zero_mul], },
-  rw [prod_classes_of_roots_map_minpoly q_splits q0, mul_left_comm, ← C_mul, mul_inv_cancel,
-    C_1, mul_one],
-  exact leading_coeff_ne_zero.mpr q0,
-end
-
-lemma aroots_eq_classes_of_roots_bind_orbit
-  {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q) :
-  q.aroots p.splitting_field =
-    (classes_of_roots q_splits).bind (λ c, c.orbit.to_finset.1) :=
-begin
-  rcases eq_or_ne q 0 with rfl | q0,
-  { rw [classes_of_roots_zero, multiset.zero_bind, polynomial.map_zero, roots_zero], },
-  conv_lhs { rw [← leading_coeff_mul_prod_classes_of_roots_map_minpoly q_splits], },
-  rw [polynomial.map_mul, polynomial.map_multiset_prod, map_C, roots_C_mul, roots_multiset_prod,
-    multiset.bind_map, multiset.bind_map],
-  simp_rw [roots_minpoly_eq_orbit_val],
-  { intros h, simp_rw [multiset.mem_map] at h,
-    obtain ⟨_, ⟨⟨y, _, rfl⟩, h⟩⟩ := h,
-    rw [map_eq_zero] at h,
-    exact minpoly.ne_zero y h, },
-  { rwa [ring_hom.map_ne_zero, leading_coeff_ne_zero], },
-end
-
-lemma root_set_eq_classes_of_roots_bUnion_orbit
-  {q : ℚ[X]} (q_splits : splits (algebra_map ℚ p.splitting_field) q) :
-  q.root_set p.splitting_field =
-    ⋃ c ∈ ((classes_of_roots q_splits).to_finset : set (gal_conj_classes p)), (c : _).orbit :=
-begin
-  refine eq.trans _ (eq.trans
-    (congr_arg (λ (m : multiset p.splitting_field), (m.to_finset : set p.splitting_field))
-    (roots_eq_classes_of_roots_bind_orbit q_splits)) _),
-  { exact root_set_def _ _, },
-  convert_to _ = ⋃ (c : gal_conj_classes p) (H : c ∈ ↑((classes_of_roots q_splits).to_finset)),
-    (c.orbit.to_finset : set p.splitting_field),
-  { simp_rw [set.coe_to_finset], },
-  rw [← coe_bUnion, finset.bUnion, finset.coe_inj, multiset.to_finset_val],
-  convert (multiset.to_finset_bind_dedup _ _).symm,
-end
--/
-
-end gal_conj_classes
-
-end gal_conj_classes
-
 section
 variables (s : finset ℂ)
 
@@ -1519,17 +1000,19 @@ end finsupp
 
 section to_conj_equiv
 variables (F : Type*) [field F] [algebra ℚ F]
+open gal_conj_classes
 
-def to_conj_equiv : map_domain_fixed s F ≃ (gal_conj_classes (Poly s) →₀ F) :=
+def to_conj_equiv : map_domain_fixed s F ≃ (gal_conj_classes ℚ (K s) →₀ F) :=
 begin
   refine (map_domain_fixed_equiv_subtype s F).trans _,
   refine
-  { to_fun := λ f, quotient.lift_finsupp (f : add_monoid_algebra F (K s)) f.2,
+  { to_fun := λ f, @quotient.lift_finsupp _ _ (is_gal_conj.setoid _ _) _
+      (f : add_monoid_algebra F (K s)) f.2,
     inv_fun := λ f, ⟨_, _⟩,
     left_inv := _,
     right_inv := _, },
-  { refine ⟨f.support.bUnion (λ i, i.orbit.to_finset), λ x, f (quotient.mk' x), λ i, _⟩,
-    simp_rw [mem_bUnion, set.mem_to_finset, mul_action.orbit_rel.quotient.mem_orbit,
+  { refine ⟨f.support.bUnion (λ i, i.orbit.to_finset), λ x, f (mk _ x), λ i, _⟩,
+    simp_rw [mem_bUnion, set.mem_to_finset, mem_orbit,
       finsupp.mem_support_iff, exists_prop, exists_eq_right'], },
   { change ∀ i j, i ∈ mul_action.orbit (Gal s) j → f (quotient.mk' i) = f (quotient.mk' j),
     exact λ i j h, congr_arg f (quotient.sound' h), },
@@ -1539,22 +1022,22 @@ end
 
 @[simp]
 lemma to_conj_equiv_apply_apply_mk (f : map_domain_fixed s F) (i : K s) :
-  to_conj_equiv s F f (quotient.mk i) = f i := rfl
+  to_conj_equiv s F f (mk ℚ i) = f i := rfl
 
 @[simp]
 lemma to_conj_equiv_apply_apply_mk' (f : map_domain_fixed s F) (i : K s) :
-  to_conj_equiv s F f (quotient.mk' i) = f i := rfl
+  to_conj_equiv s F f (mk ℚ i) = f i := rfl
 
 @[simp]
-lemma to_conj_equiv_symm_apply_apply (f : gal_conj_classes (Poly s) →₀ F) (i : K s) :
-  (to_conj_equiv s F).symm f i = f (quotient.mk i) := rfl
+lemma to_conj_equiv_symm_apply_apply (f : gal_conj_classes ℚ (K s) →₀ F) (i : K s) :
+  (to_conj_equiv s F).symm f i = f (mk ℚ i) := rfl
 
 @[simp]
-lemma to_conj_equiv_symm_apply_apply' (f : gal_conj_classes (Poly s) →₀ F) (i : K s) :
-  (to_conj_equiv s F).symm f i = f (quotient.mk' i) := rfl
+lemma to_conj_equiv_symm_apply_apply' (f : gal_conj_classes ℚ (K s) →₀ F) (i : K s) :
+  (to_conj_equiv s F).symm f i = f (mk ℚ i) := rfl
 
 @[simp]
-lemma to_conj_equiv_apply_apply (f : map_domain_fixed s F) (i : gal_conj_classes (Poly s)) :
+lemma to_conj_equiv_apply_apply (f : map_domain_fixed s F) (i : gal_conj_classes ℚ (K s)) :
   to_conj_equiv s F f i = f i.out :=
 by rw [← i.out_eq, to_conj_equiv_apply_apply_mk, i.out_eq]
 
@@ -1564,12 +1047,12 @@ lemma to_conj_equiv_apply_zero_eq (f : map_domain_fixed s F) :
 by rw [to_conj_equiv_apply_apply, gal_conj_classes.zero_out]
 
 @[simp]
-lemma to_conj_equiv_symm_apply_zero_eq (f : gal_conj_classes (Poly s) →₀ F) :
+lemma to_conj_equiv_symm_apply_zero_eq (f : gal_conj_classes ℚ (K s) →₀ F) :
   (to_conj_equiv s F).symm f 0 = f 0 :=
 by { rw [to_conj_equiv_symm_apply_apply], refl, }
 
 @[simps]
-def to_conj_linear_equiv : map_domain_fixed s F ≃ₗ[F] (gal_conj_classes (Poly s) →₀ F) :=
+def to_conj_linear_equiv : map_domain_fixed s F ≃ₗ[F] (gal_conj_classes ℚ (K s) →₀ F) :=
 { to_fun := to_conj_equiv s F,
   inv_fun := (to_conj_equiv s F).symm,
   map_add' := λ x y, by { ext i, simp_rw [finsupp.coe_add, pi.add_apply,
@@ -1580,7 +1063,7 @@ def to_conj_linear_equiv : map_domain_fixed s F ≃ₗ[F] (gal_conj_classes (Pol
 
 namespace finsupp.gal_conj_classes
 
-instance : comm_ring (gal_conj_classes (Poly s) →₀ F) :=
+instance : comm_ring (gal_conj_classes ℚ (K s) →₀ F) :=
 { zero := 0,
   add := (+),
   one := to_conj_linear_equiv s F 1,
@@ -1595,45 +1078,45 @@ instance : comm_ring (gal_conj_classes (Poly s) →₀ F) :=
   right_distrib := λ a b c, by simp only [← map_add, ← add_mul],
   mul_comm := λ a b, by { change to_conj_linear_equiv s F _ = to_conj_linear_equiv s F _,
     exact congr_arg _ (mul_comm _ _), },
-  ..(infer_instance : add_comm_group (gal_conj_classes (Poly s) →₀ F)) }
+  ..(infer_instance : add_comm_group (gal_conj_classes ℚ (K s) →₀ F)) }
 
-lemma one_def : (1 : gal_conj_classes (Poly s) →₀ F) = to_conj_linear_equiv s F 1 := rfl
+lemma one_def : (1 : gal_conj_classes ℚ (K s) →₀ F) = to_conj_linear_equiv s F 1 := rfl
 
-lemma mul_def (x y : gal_conj_classes (Poly s) →₀ F) :
+lemma mul_def (x y : gal_conj_classes ℚ (K s) →₀ F) :
   x * y = to_conj_linear_equiv s F
     (((to_conj_linear_equiv s F).symm x) * ((to_conj_linear_equiv s F).symm y)) := rfl
 
 instance cache : is_scalar_tower F (map_domain_fixed s F) (map_domain_fixed s F) :=
 is_scalar_tower.right
 
-instance : algebra F (gal_conj_classes (Poly s) →₀ F) :=
+instance : algebra F (gal_conj_classes ℚ (K s) →₀ F) :=
 algebra.of_module'
   (λ r x, by rw [one_def, mul_def, smul_hom_class.map_smul, linear_equiv.symm_apply_apply,
     smul_one_mul, ← smul_hom_class.map_smul, linear_equiv.apply_symm_apply])
   (λ r x, by rw [one_def, mul_def, smul_hom_class.map_smul, linear_equiv.symm_apply_apply,
     mul_smul_one, ← smul_hom_class.map_smul, linear_equiv.apply_symm_apply])
 
-lemma one_eq_single : (1 : gal_conj_classes (Poly s) →₀ F) = finsupp.single 0 1 :=
+lemma one_eq_single : (1 : gal_conj_classes ℚ (K s) →₀ F) = finsupp.single 0 1 :=
 begin
   change to_conj_equiv s F 1 = _,
   ext i, rw [to_conj_equiv_apply_apply],
   change (1 : add_monoid_algebra F (K s)) i.out = finsupp.single 0 1 i,
   simp_rw [add_monoid_algebra.one_def, finsupp.single_apply],
-  change (ite (0 = i.out) 1 0 : F) = ite (⟦0⟧ = i) 1 0,
+  change (ite (0 = i.out) 1 0 : F) = ite (0 = i) 1 0,
   simp_rw [@eq_comm _ _ i.out, @eq_comm _ _ i, gal_conj_classes.out_eq_zero_iff],
 end
 
 lemma algebra_map_eq_single (x : F) :
-  algebra_map F (gal_conj_classes (Poly s) →₀ F) x = finsupp.single 0 x :=
+  algebra_map F (gal_conj_classes ℚ (K s) →₀ F) x = finsupp.single 0 x :=
 begin
-  change x • (1 : gal_conj_classes (Poly s) →₀ F) = finsupp.single 0 x,
+  change x • (1 : gal_conj_classes ℚ (K s) →₀ F) = finsupp.single 0 x,
   rw [one_eq_single, finsupp.smul_single, smul_eq_mul, mul_one],
 end
 
 end finsupp.gal_conj_classes
 
 @[simps]
-def to_conj_alg_equiv : map_domain_fixed s F ≃ₐ[F] (gal_conj_classes (Poly s) →₀ F) :=
+def to_conj_alg_equiv : map_domain_fixed s F ≃ₐ[F] (gal_conj_classes ℚ (K s) →₀ F) :=
 { to_fun := to_conj_linear_equiv s F,
   inv_fun := (to_conj_linear_equiv s F).symm,
   map_mul' := λ x y, by simp_rw [finsupp.gal_conj_classes.mul_def, linear_equiv.symm_apply_apply],
@@ -1644,37 +1127,35 @@ def to_conj_alg_equiv : map_domain_fixed s F ≃ₐ[F] (gal_conj_classes (Poly s
     ext i, rw [to_conj_equiv_apply_apply],
     change finsupp.single 0 r i.out = finsupp.single 0 r i,
     simp_rw [finsupp.single_apply],
-    change ite (0 = i.out) r 0 = ite (⟦0⟧ = i) r 0,
-    simp_rw [@eq_comm _ _ i.out, @eq_comm _ _ i, gal_conj_classes.out_eq_zero_iff],
+    change ite (0 = i.out) r 0 = ite (0 = i) r 0,
+    simp_rw [@eq_comm _ _ i.out, @eq_comm _ _ i, out_eq_zero_iff],
   end,
   ..to_conj_linear_equiv s F, }
 
-lemma to_conj_equiv_symm_single.aux (x : gal_conj_classes (Poly s)) (a : F) :
+lemma to_conj_equiv_symm_single.aux (x : gal_conj_classes ℚ (K s)) (a : F) :
   finsupp.const_on x.orbit.to_finset a ∈ map_domain_fixed s F :=
 begin
   rw [mem_map_domain_fixed_iff],
   rintros i j h,
   simp_rw [finsupp.const_on_apply, set.mem_to_finset], congr' 1,
-  simp_rw [mul_action.orbit_rel.quotient.mem_orbit],
-  suffices : quotient.mk' i = quotient.mk' j, { rw [this], },
-  rwa [quotient.eq'],
+  simp_rw [mem_orbit],
+  suffices : mk ℚ i = mk ℚ j, { rw [this], },
+  rwa [gal_conj_classes.eq],
 end
 
-lemma to_conj_equiv_symm_single (x : gal_conj_classes (Poly s)) (a : F) :
+lemma to_conj_equiv_symm_single (x : gal_conj_classes ℚ (K s)) (a : F) :
   (to_conj_equiv s F).symm (finsupp.single x a) =
     ⟨finsupp.const_on x.orbit.to_finset a, to_conj_equiv_symm_single.aux s F x a⟩ :=
 begin
   rw [equiv.symm_apply_eq],
   ext i, rw [to_conj_equiv_apply_apply],
-  change finsupp.single x a i =
-    finsupp.const_on (mul_action.orbit_rel.quotient.orbit x).to_finset a (quotient.out i),
+  change finsupp.single x a i = finsupp.const_on x.orbit.to_finset a i.out,
   rw [finsupp.single_apply, finsupp.const_on_apply], congr' 1,
-  rw [set.mem_to_finset, mul_action.orbit_rel.quotient.mem_orbit, quotient.mk'_eq_mk,
-    quotient.out_eq, @eq_comm _ i],
+  rw [set.mem_to_finset, mem_orbit, out_eq, @eq_comm _ i],
 end
 
-lemma single_prod_apply_zero_ne_zero_iff (x : gal_conj_classes (Poly s)) {a : F} (ha : a ≠ 0)
-  (y : gal_conj_classes (Poly s)) {b : F} (hb : b ≠ 0) :
+lemma single_prod_apply_zero_ne_zero_iff (x : gal_conj_classes ℚ (K s)) {a : F} (ha : a ≠ 0)
+  (y : gal_conj_classes ℚ (K s)) {b : F} (hb : b ≠ 0) :
   (finsupp.single x a * finsupp.single y b) 0 ≠ 0 ↔ x = -y :=
 begin
   simp_rw [finsupp.gal_conj_classes.mul_def, to_conj_linear_equiv_apply,
@@ -1688,11 +1169,11 @@ begin
     sum_const_zero, add_zero, sum_const, smul_ne_zero_iff, mul_ne_zero_iff, iff_true_intro ha,
     iff_true_intro hb, and_true, ne.def, card_eq_zero, filter_eq_empty_iff], push_neg,
   simp_rw [prod.exists, mem_product, set.mem_to_finset],
-  exact gal_conj_classes.exist_mem_orbit_add_eq_zero (Poly s) x y,
+  exact gal_conj_classes.exist_mem_orbit_add_eq_zero x y,
 end
 
-lemma single_prod_apply_zero_eq_zero_iff (x : gal_conj_classes (Poly s)) {a : F} (ha : a ≠ 0)
-  (y : gal_conj_classes (Poly s)) {b : F} (hb : b ≠ 0) :
+lemma single_prod_apply_zero_eq_zero_iff (x : gal_conj_classes ℚ (K s)) {a : F} (ha : a ≠ 0)
+  (y : gal_conj_classes ℚ (K s)) {b : F} (hb : b ≠ 0) :
   (finsupp.single x a * finsupp.single y b) 0 = 0 ↔ x ≠ -y :=
 by { convert (single_prod_apply_zero_ne_zero_iff s F x ha y hb).not, rw [ne.def, not_not], }
 
@@ -1734,20 +1215,8 @@ begin
     ← intermediate_field.bot_equiv_symm, alg_equiv.symm_apply_apply], refl,
 end
 
-/-
-```
-example : @complex.has_smul ℚ (@rat.smul_division_ring ℝ real.division_ring) =
-  @smul_zero_class.to_has_smul ℚ ℂ _
-    (@distrib_smul.to_smul_zero_class ℚ ℂ _
-      (@rat.distrib_smul ℂ _)) := rfl
-```
--/
-instance {R} [semiring R] [distrib_smul R ℝ] : distrib_smul R ℂ :=
-{ smul_add := λ r x y, by ext; simp [smul_re, smul_im, smul_add],
-  smul_zero := λ r, by ext; simp [smul_re, smul_im, smul_zero] }
-
-lemma Eval_to_conj_alg_equiv_symm (x : gal_conj_classes (Poly s) →₀ ℚ) :
-  Eval s ℚ ((to_conj_alg_equiv s ℚ).symm x) = ∑ (c : gal_conj_classes (Poly s)) in x.support,
+lemma Eval_to_conj_alg_equiv_symm (x : gal_conj_classes ℚ (K s) →₀ ℚ) :
+  Eval s ℚ ((to_conj_alg_equiv s ℚ).symm x) = ∑ (c : gal_conj_classes ℚ (K s)) in x.support,
     x c • ∑ (i : K s) in c.orbit.to_finset, exp (algebra_map (K s) ℂ i) :=
 begin
   conv_lhs { rw [← x.sum_single, finsupp.sum, map_sum], },
@@ -1764,14 +1233,14 @@ end Eval
 
 instance is_domain1 : is_domain (add_monoid_algebra (K s) (K s)) := sorry
 instance is_domain2 : is_domain (add_monoid_algebra ℚ (K s)) := sorry
-instance is_domain3 : is_domain (gal_conj_classes (Poly s) →₀ ℚ) :=
+instance is_domain3 : is_domain (gal_conj_classes ℚ (K s) →₀ ℚ) :=
 ring_equiv.is_domain (map_domain_fixed s ℚ) (to_conj_alg_equiv s ℚ).symm
 
 lemma linear_independent_exp_aux2 (s : finset ℂ)
   (x : add_monoid_algebra ℚ (K s)) (x0 : x ≠ 0) (x_ker : x ∈ (Eval s ℚ).to_ring_hom.ker) :
   ∃ (w : ℚ) (w0 : w ≠ 0)
-    (q : finset (gal_conj_classes (Poly s))) (hq : (0 : gal_conj_classes (Poly s)) ∉ q)
-    (w' : gal_conj_classes (Poly s) → ℚ),
+    (q : finset (gal_conj_classes ℚ (K s))) (hq : (0 : gal_conj_classes ℚ (K s)) ∉ q)
+    (w' : gal_conj_classes ℚ (K s) → ℚ),
     (w + ∑ c in q, w' c • ∑ x in c.orbit.to_finset,
       exp (algebra_map (K s) ℂ x) : ℂ) = 0 :=
 begin
@@ -1817,7 +1286,7 @@ begin
       { rw [neg_neg], exact hj.1, }, exact one_ne_zero, },
     rw [add_zero, single_prod_apply_zero_ne_zero_iff],
     { rw [neg_neg], }, { rwa [finsupp.mem_support_iff] at hi, }, exact one_ne_zero, },
-  have zero_mem : (0 : gal_conj_classes (Poly s)) ∈ V''.support,
+  have zero_mem : (0 : gal_conj_classes ℚ (K s)) ∈ V''.support,
   { rwa [finsupp.mem_support_iff], },
   have Eval_V'' : Eval s ℚ ((to_conj_alg_equiv s ℚ).symm V'') = 0,
   { dsimp only [V'', V'],
@@ -1835,8 +1304,8 @@ end
 lemma linear_independent_exp_aux1 (s : finset ℂ)
   (x : add_monoid_algebra (K s) (K s)) (x0 : x ≠ 0) (x_ker : x ∈ (Eval s (K s)).to_ring_hom.ker) :
   ∃ (w : ℚ) (w0 : w ≠ 0)
-    (q : finset (gal_conj_classes (Poly s))) (hq : (0 : gal_conj_classes (Poly s)) ∉ q)
-    (w' : gal_conj_classes (Poly s) → ℚ),
+    (q : finset (gal_conj_classes ℚ (K s))) (hq : (0 : gal_conj_classes ℚ (K s)) ∉ q)
+    (w' : gal_conj_classes ℚ (K s) → ℚ),
     (w + ∑ c in q, w' c • ∑ x in c.orbit.to_finset,
       exp (algebra_map (K s) ℂ x) : ℂ) = 0 :=
 begin
@@ -1890,8 +1359,8 @@ lemma linear_independent_exp_aux_rat
   (v : ι → ℂ) (hv : ∀ i, is_integral ℚ (v i)) (v0 : v ≠ 0)
   (h : ∑ i, v i * exp (u i) = 0) :
   ∃ (w : ℚ) (w0 : w ≠ 0)
-    (q : finset (gal_conj_classes (Poly (Range u v)))) (hq : (0 : gal_conj_classes _) ∉ q)
-    (w' : gal_conj_classes (Poly (Range u v)) → ℚ),
+    (q : finset (gal_conj_classes ℚ (K (Range u v)))) (hq : (0 : gal_conj_classes _ _) ∉ q)
+    (w' : gal_conj_classes ℚ (K (Range u v)) → ℚ),
     (w + ∑ c in q, w' c • ∑ x in c.orbit.to_finset,
       exp (algebra_map (K (Range u v)) ℂ x) : ℂ) = 0 :=
 begin
@@ -1906,13 +1375,13 @@ begin
   have u_mem : ∀ i, u i ∈ K' s,
   { intros i,
     apply intermediate_field.subset_adjoin,
-    rw [mem_root_set (Poly_ne_zero s hs), map_prod, prod_eq_zero_iff],
-    exact ⟨u i, mem_union_left _ (mem_image.mpr ⟨i, mem_univ _, rfl⟩), minpoly.aeval _ _⟩, },
+    rw [mem_root_set, map_prod, prod_eq_zero_iff],
+    exact ⟨Poly_ne_zero s hs, u i, mem_union_left _ (mem_image.mpr ⟨i, mem_univ _, rfl⟩), minpoly.aeval _ _⟩, },
   have v_mem : ∀ i, v i ∈ K' s,
   { intros i,
     apply intermediate_field.subset_adjoin,
-    rw [mem_root_set (Poly_ne_zero s hs), map_prod, prod_eq_zero_iff],
-    exact ⟨v i, mem_union_right _ (mem_image.mpr ⟨i, mem_univ _, rfl⟩), minpoly.aeval _ _⟩, },
+    rw [mem_root_set, map_prod, prod_eq_zero_iff],
+    exact ⟨Poly_ne_zero s hs, v i, mem_union_right _ (mem_image.mpr ⟨i, mem_univ _, rfl⟩), minpoly.aeval _ _⟩, },
   let u' : ∀ i, K s := λ i : ι, Lift s ⟨u i, u_mem i⟩,
   let v' : ∀ i, K s := λ i : ι, Lift s ⟨v i, v_mem i⟩,
   have u'_inj : function.injective u' :=
@@ -1952,8 +1421,8 @@ lemma linear_independent_exp_aux''
   (v : ι → ℂ) (hv : ∀ i, is_integral ℚ (v i)) (v0 : v ≠ 0)
   (h : ∑ i, v i * exp (u i) = 0) :
   ∃ (w : ℤ) (w0 : w ≠ 0)
-    (q : finset (gal_conj_classes (Poly (Range u v)))) (hq : (0 : gal_conj_classes _) ∉ q)
-    (w' : gal_conj_classes (Poly (Range u v)) → ℤ),
+    (q : finset (gal_conj_classes ℚ (K (Range u v)))) (hq : (0 : gal_conj_classes _ _) ∉ q)
+    (w' : gal_conj_classes ℚ (K (Range u v)) → ℤ),
     (w + ∑ c in q, w' c • ∑ x in c.orbit.to_finset,
       exp (algebra_map (K (Range u v)) ℂ x) : ℂ) = 0 :=
 begin
@@ -1992,7 +1461,7 @@ lemma linear_independent_exp_aux'
 begin
   let s := Range u v,
   obtain ⟨w, w0, q, hq, w', h⟩ := linear_independent_exp_aux'' u hu u_inj v hv v0 h,
-  let c : fin q.card → gal_conj_classes (Poly s) := λ j, q.equiv_fin.symm j,
+  let c : fin q.card → gal_conj_classes ℚ (K s) := λ j, q.equiv_fin.symm j,
   have hc : ∀ j, c j ∈ q := λ j, finset.coe_mem _,
   refine ⟨w, w0, q.card, λ j, (c j).minpoly, _, λ j, w' (c j), _⟩,
   { intros j, specialize hc j,
@@ -2003,8 +1472,7 @@ begin
     intros a ha,
     rw [eval_sub, eval_X, eval_C, sub_ne_zero],
     rintros rfl,
-    rw [set.mem_to_finset, mul_action.orbit_rel.quotient.mem_orbit, quotient.mk'_eq_mk,
-      gal_conj_classes.mk_zero] at ha,
+    rw [set.mem_to_finset, gal_conj_classes.mem_orbit, gal_conj_classes.mk_zero] at ha,
     rw [← ha] at hc, exact hq hc, },
   rw [← h, add_right_inj],
   change ∑ j, (λ i : q, (λ c, w' c •
@@ -2316,12 +1784,12 @@ begin
   obtain ⟨c, hc'⟩ := exp_polynomial_approx P P0,
   let N := max (eval 0 P).nat_abs (max k.nat_abs w.nat_abs),
   
-  let W := sup' univ univ_nonempty (λ j, ∥w' j∥),
+  let W := sup' univ univ_nonempty (λ j, ‖w' j‖),
   have W0 : 0 ≤ W := I.elim (λ j, (norm_nonneg (w' j)).trans (le_sup' _ (mem_univ j))),
   
   obtain ⟨q, hqN, prime_q, hq⟩ := linear_independent_exp_exists_prime N
     (W * ↑∑ (i : fin m), ((p i).aroots ℂ).card)
-      (∥k∥ ^ P.nat_degree * c),
+      (‖k‖ ^ P.nat_degree * c),
   
   obtain ⟨n, hn, gp, hgp, hc⟩ := hc' q ((le_max_left _ _).trans_lt hqN) prime_q,
   replace hgp : gp.nat_degree ≤ P.nat_degree * q, { rw [mul_comm], exact hgp.trans tsub_le_self, },
@@ -2340,41 +1808,41 @@ begin
   let t := P.nat_degree * q,
   
   have H :=
-  calc  ∥algebra_map K ℂ ((k ^ t * n * w : ℤ) + q • ∑ j, w' j •
-          (((p j).aroots K).map (λ x, k ^ t • aeval x gp)).sum)∥
-      = ∥algebra_map K ℂ (k ^ t • n • w + q • ∑ j, w' j •
-          (((p j).aroots K).map (λ x, k ^ t • aeval x gp)).sum)∥
+  calc  ‖algebra_map K ℂ ((k ^ t * n * w : ℤ) + q • ∑ j, w' j •
+          (((p j).aroots K).map (λ x, k ^ t • aeval x gp)).sum)‖
+      = ‖algebra_map K ℂ (k ^ t • n • w + q • ∑ j, w' j •
+          (((p j).aroots K).map (λ x, k ^ t • aeval x gp)).sum)‖
       : by { simp_rw [zsmul_eq_mul], norm_cast, rw [mul_assoc], }
-  ... = ∥algebra_map K ℂ (k ^ t • n • w + q • ∑ j, w' j •
+  ... = ‖algebra_map K ℂ (k ^ t • n • w + q • ∑ j, w' j •
           (((p j).aroots K).map (λ x, k ^ t • aeval x gp)).sum) -
           (k ^ t • n •
-            (w + ∑ j, w' j • (((p j).aroots K).map (λ x, exp (algebra_map K ℂ x))).sum))∥
+            (w + ∑ j, w' j • (((p j).aroots K).map (λ x, exp (algebra_map K ℂ x))).sum))‖
       : by rw [h, smul_zero, smul_zero, sub_zero]
-  ... = ∥algebra_map K ℂ (k ^ t • n • w + k ^ t • ∑ j, w' j •
+  ... = ‖algebra_map K ℂ (k ^ t • n • w + k ^ t • ∑ j, w' j •
           (((p j).aroots K).map (λ x, q • aeval x gp)).sum) -
           (k ^ t • n • w +
-            k ^ t • ∑ j, w' j • (((p j).aroots K).map (λ x, n • exp (algebra_map K ℂ x))).sum)∥
+            k ^ t • ∑ j, w' j • (((p j).aroots K).map (λ x, n • exp (algebra_map K ℂ x))).sum)‖
       : by simp_rw [smul_add, smul_sum, multiset.smul_sum, multiset.map_map, function.comp,
           smul_comm n, smul_comm (k ^ t), smul_comm q]
-  ... = ∥(k ^ t • n • w + k ^ t • ∑ j, w' j •
+  ... = ‖(k ^ t • n • w + k ^ t • ∑ j, w' j •
           (((p j).aroots K).map (λ x, q • algebra_map K ℂ (aeval x gp))).sum : ℂ) -
           (k ^ t • n • w +
-            k ^ t • ∑ j, w' j • (((p j).aroots K).map (λ x, n • exp (algebra_map K ℂ x))).sum)∥
+            k ^ t • ∑ j, w' j • (((p j).aroots K).map (λ x, n • exp (algebra_map K ℂ x))).sum)‖
       : by simp only [map_add, map_nsmul, map_zsmul, _root_.map_int_cast, map_sum,
           map_multiset_sum, multiset.map_map, function.comp]
-  ... = ∥k ^ t • ∑ j, w' j • (((p j).aroots K).map
-          (λ x, q • algebra_map K ℂ (aeval x gp) - n • exp (algebra_map K ℂ x))).sum∥
+  ... = ‖k ^ t • ∑ j, w' j • (((p j).aroots K).map
+          (λ x, q • algebra_map K ℂ (aeval x gp) - n • exp (algebra_map K ℂ x))).sum‖
       : by simp only [add_sub_add_left_eq_sub, ← smul_sub, ← sum_sub_distrib,
           ← multiset.sum_map_sub]
-  ... = ∥k ^ t • ∑ j, w' j • (((p j).aroots K).map
-          (λ x, q • aeval (algebra_map K ℂ x) gp - n • exp (algebra_map K ℂ x))).sum∥
+  ... = ‖k ^ t • ∑ j, w' j • (((p j).aroots K).map
+          (λ x, q • aeval (algebra_map K ℂ x) gp - n • exp (algebra_map K ℂ x))).sum‖
       : by simp_rw [aeval_algebra_map_apply]
-  ... = ∥k ^ t • ∑ j, w' j • (((p j).aroots K).map
-          (λ x, (λ x', (q • aeval x' gp - n • exp x')) (algebra_map K ℂ x))).sum∥
+  ... = ‖k ^ t • ∑ j, w' j • (((p j).aroots K).map
+          (λ x, (λ x', (q • aeval x' gp - n • exp x')) (algebra_map K ℂ x))).sum‖
       : rfl
-  ... = ∥k ^ t • ∑ j, w' j • (((p j).aroots ℂ).map (λ x, q • aeval x gp - n • exp x)).sum∥
+  ... = ‖k ^ t • ∑ j, w' j • (((p j).aroots ℂ).map (λ x, q • aeval x gp - n • exp x)).sum‖
       : by { congr', funext, congr' 1, exact sum_aroots_K_eq_sum_aroots_ℂ _ _, }
-  ... ≤ ∥k ^ t∥ * ∑ j, W * (((p j).aroots ℂ).map (λ x, c ^ q / ↑(q - 1)!)).sum
+  ... ≤ ‖k ^ t‖ * ∑ j, W * (((p j).aroots ℂ).map (λ x, c ^ q / ↑(q - 1)!)).sum
       : begin
           refine (norm_zsmul_le _ _).trans _,
           refine mul_le_mul_of_nonneg_left _ (norm_nonneg _),
@@ -2393,17 +1861,17 @@ begin
           exact prod_eq_zero (mem_univ j) hx,
         end,
   simp_rw [int.norm_eq_abs, int.cast_pow, _root_.abs_pow, ← int.norm_eq_abs,
-    multiset.map_const, multiset.sum_repeat, ← mul_sum, ← sum_smul, nsmul_eq_mul,
-    mul_comm (∥k∥ ^ t), mul_assoc, mul_comm (_ / _ : ℝ), t, pow_mul,
+    multiset.map_const, multiset.sum_replicate, ← mul_sum, ← sum_smul, nsmul_eq_mul,
+    mul_comm (‖k‖ ^ t), mul_assoc, mul_comm (_ / _ : ℝ), t, pow_mul,
     mul_div (_ ^ _ : ℝ), ← mul_pow, ← mul_assoc, mul_div, ← pow_mul] at H,
   replace H := H.trans_lt hq,
   have : ∑ j, w' j • (((p j).aroots K).map (λ (x : K), k ^ (P.nat_degree * q) • aeval x gp)).sum =
     algebra_map ℤ K (∑ j, w' j • sz j),
   { rw [map_sum], congr', funext j, rw [map_zsmul, hsz], },
   rw [this] at H,
-  have : ∥algebra_map K ℂ (↑(k ^ (P.nat_degree * q) * n * w) +
-    ↑q * algebra_map ℤ K (∑ j, w' j • sz j))∥ =
-    ∥algebra_map ℤ ℂ ((k ^ (P.nat_degree * q) * n * w) + q * (∑ j, w' j • sz j))∥,
+  have : ‖algebra_map K ℂ (↑(k ^ (P.nat_degree * q) * n * w) +
+    ↑q * algebra_map ℤ K (∑ j, w' j • sz j))‖ =
+    ‖algebra_map ℤ ℂ ((k ^ (P.nat_degree * q) * n * w) + q * (∑ j, w' j • sz j))‖,
   { simp_rw [is_scalar_tower.algebra_map_apply ℤ K ℂ, algebra_map_int_eq, int.coe_cast_ring_hom],
     norm_cast, },
   rw [this, algebra_map_int_eq, int.coe_cast_ring_hom, norm_int, ← int.cast_abs, ← int.cast_one,
