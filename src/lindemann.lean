@@ -3,10 +3,10 @@ Copyright (c) 2022 Yuyang Zhao. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Yuyang Zhao
 -/
+import algebra.big_operators.finsupp
 import analysis.complex.basic
 import analysis.special_functions.polynomials
 import data.complex.exponential
-import data.finsupp.indicator
 import field_theory.polynomial_galois_group
 import measure_theory.integral.interval_integral
 import measure_theory.integral.set_integral
@@ -28,6 +28,21 @@ lemma desc_factorial_eq_prod_range (n : ℕ) :
 | (k + 1) := by rw [desc_factorial, prod_range_succ, mul_comm, desc_factorial_eq_prod_range k]
 
 end nat
+
+namespace finsupp
+variables {α M N : Type*}
+
+lemma indicator_const_eq_sum_single [add_comm_monoid M] (s : finset α) (m : M) :
+  indicator s (λ _ _, m) = ∑ x in s, single x m :=
+(indicator_eq_sum_single _ _).trans $ @sum_attach _ _ _ _ (λ i, single i m)
+
+@[simp, to_additive]
+lemma prod_indicator_const_index [has_zero M] [comm_monoid N]
+  {s : finset α} (m : M) {h : α → M → N} (h_zero : ∀ a ∈ s, h a 0 = 1) :
+  (indicator s (λ _ _, m)).prod h = ∏ x in s, h x m :=
+(prod_indicator_index _ h_zero).trans $ @prod_attach _ _ _ _ (λ i, h i m)
+
+end finsupp
 
 namespace polynomial
 /-
@@ -951,53 +966,6 @@ def map_domain_fixed_equiv_subtype :
 
 end
 
-namespace finsupp
-
-def const_on {α β : Type*} [has_zero β] (s : finset α) (x : β) : α →₀ β :=
-{ support := if x = 0 then ∅ else s,
-  to_fun := λ i, if i ∈ s then x else 0,
-  mem_support_to_fun := λ a, by split_ifs; simp [h, h_1], }
-
-lemma const_on_apply {α β : Type*} [has_zero β] (s : finset α) (x : β) (i : α) :
-  const_on s x i = if i ∈ s then x else 0 := rfl
-
-lemma const_on_apply_of_mem {α β : Type*} [has_zero β]
-  {s : finset α} {x : β} {i : α} (hi : i ∈ s) :
-  const_on s x i = x :=
-by rw [const_on_apply, if_pos hi]
-
-lemma const_on_apply_of_not_mem {α β : Type*} [has_zero β]
-  {s : finset α} {x : β} {i : α} (hi : i ∉ s) :
-  const_on s x i = 0 :=
-by rw [const_on_apply, if_neg hi]
-
-lemma support_const_on {α β : Type*} [has_zero β] (s : finset α) (x : β) :
-  (const_on s x).support = if x = 0 then ∅ else s := rfl
-
-lemma support_const_on_subset {α β : Type*} [has_zero β] {s : finset α} {x : β} :
-  (const_on s x).support ⊆ s :=
-by { rw [support_const_on], split_ifs, exacts [empty_subset _, subset_rfl], }
-
-lemma const_on_eq_sum_single {α β : Type*} [add_comm_monoid β]
-  (s : finset α) (x : β) :
-  const_on s x = ∑ i in s, single i x :=
-begin
-  rw [← sum_single (const_on s x), sum, sum_subset support_const_on_subset],
-  { refine finset.sum_congr rfl (λ i hi, _), rw [const_on_apply_of_mem hi], },
-  intros i _ hi, rw [not_mem_support_iff.mp hi, single_zero],
-end
-
-@[simp, to_additive]
-lemma prod_const_on_index {α M N : Type*} [has_zero M] [comm_monoid N]
-  {s : finset α} {b : M} {h : α → M → N} (h_zero : ∀ a ∈ s, h a 0 = 1) :
-  (const_on s b).prod h = ∏ a in s, h a b :=
-begin
-  rw [prod_of_support_subset _ support_const_on_subset h h_zero],
-  refine finset.prod_congr rfl (λ x hx, _), rw [const_on_apply_of_mem hx],
-end
-
-end finsupp
-
 section to_conj_equiv
 variables (F : Type*) [field F] [algebra ℚ F]
 open gal_conj_classes
@@ -1025,15 +993,7 @@ lemma to_conj_equiv_apply_apply_mk (f : map_domain_fixed s F) (i : K s) :
   to_conj_equiv s F f (mk ℚ i) = f i := rfl
 
 @[simp]
-lemma to_conj_equiv_apply_apply_mk' (f : map_domain_fixed s F) (i : K s) :
-  to_conj_equiv s F f (mk ℚ i) = f i := rfl
-
-@[simp]
 lemma to_conj_equiv_symm_apply_apply (f : gal_conj_classes ℚ (K s) →₀ F) (i : K s) :
-  (to_conj_equiv s F).symm f i = f (mk ℚ i) := rfl
-
-@[simp]
-lemma to_conj_equiv_symm_apply_apply' (f : gal_conj_classes ℚ (K s) →₀ F) (i : K s) :
   (to_conj_equiv s F).symm f i = f (mk ℚ i) := rfl
 
 @[simp]
@@ -1133,24 +1093,24 @@ def to_conj_alg_equiv : map_domain_fixed s F ≃ₐ[F] (gal_conj_classes ℚ (K 
   ..to_conj_linear_equiv s F, }
 
 lemma to_conj_equiv_symm_single.aux (x : gal_conj_classes ℚ (K s)) (a : F) :
-  finsupp.const_on x.orbit.to_finset a ∈ map_domain_fixed s F :=
+  finsupp.indicator x.orbit.to_finset (λ _ _, a) ∈ map_domain_fixed s F :=
 begin
   rw [mem_map_domain_fixed_iff],
   rintros i j h,
-  simp_rw [finsupp.const_on_apply, set.mem_to_finset], congr' 1,
-  simp_rw [mem_orbit],
-  suffices : mk ℚ i = mk ℚ j, { rw [this], },
+  simp_rw [finsupp.indicator_apply, set.mem_to_finset], dsimp, congr' 1,
+  simp_rw [mem_orbit, eq_iff_iff],
+  apply eq.congr_left,
   rwa [gal_conj_classes.eq],
 end
 
 lemma to_conj_equiv_symm_single (x : gal_conj_classes ℚ (K s)) (a : F) :
   (to_conj_equiv s F).symm (finsupp.single x a) =
-    ⟨finsupp.const_on x.orbit.to_finset a, to_conj_equiv_symm_single.aux s F x a⟩ :=
+    ⟨finsupp.indicator x.orbit.to_finset (λ _ _, a), to_conj_equiv_symm_single.aux s F x a⟩ :=
 begin
   rw [equiv.symm_apply_eq],
   ext i, rw [to_conj_equiv_apply_apply],
-  change finsupp.single x a i = finsupp.const_on x.orbit.to_finset a i.out,
-  rw [finsupp.single_apply, finsupp.const_on_apply], congr' 1,
+  change finsupp.single x a i = finsupp.indicator x.orbit.to_finset (λ _ _, a) i.out,
+  rw [finsupp.single_apply, finsupp.indicator_apply], dsimp, congr' 1,
   rw [set.mem_to_finset, mem_orbit, out_eq, @eq_comm _ i],
 end
 
@@ -1161,10 +1121,12 @@ begin
   simp_rw [finsupp.gal_conj_classes.mul_def, to_conj_linear_equiv_apply,
     to_conj_linear_equiv_symm_apply, to_conj_equiv_apply_zero_eq],
   simp_rw [to_conj_equiv_symm_single, mul_mem_class.mk_mul_mk],
-  change (finsupp.const_on x.orbit.to_finset a * finsupp.const_on y.orbit.to_finset b :
+  change (finsupp.indicator x.orbit.to_finset (λ _ _, a) *
+    finsupp.indicator y.orbit.to_finset (λ _ _, b) :
     add_monoid_algebra _ _) 0 ≠ _ ↔ _,
   haveI := nat.no_zero_smul_divisors ℚ F,
-  simp_rw [finsupp.const_on_eq_sum_single, sum_mul, mul_sum, add_monoid_algebra.single_mul_single,
+  simp_rw [finsupp.indicator_const_eq_sum_single, sum_mul, mul_sum,
+    add_monoid_algebra.single_mul_single,
     finsupp.coe_finset_sum, sum_apply, finsupp.single_apply, ← sum_product', sum_ite,
     sum_const_zero, add_zero, sum_const, smul_ne_zero_iff, mul_ne_zero_iff, iff_true_intro ha,
     iff_true_intro hb, and_true, ne.def, card_eq_zero, filter_eq_empty_iff], push_neg,
@@ -1222,9 +1184,9 @@ begin
   conv_lhs { rw [← x.sum_single, finsupp.sum, map_sum], },
   change Eval s ℚ ↑(finset.sum _ (λ i, (to_conj_equiv s ℚ).symm _)) = _,
   have : ∀ (s' : finset (K s)) (b : ℚ),
-    (finsupp.const_on s' b).sum (λ a c, c • exp (algebra_map (K s) ℂ a)) =
+    (finsupp.indicator s' (λ _ _, b)).sum (λ a c, c • exp (algebra_map (K s) ℂ a)) =
     ∑ i in s', b • exp (algebra_map (K s) ℂ i) :=
-  λ s' b, finsupp.sum_const_on_index (λ i hi, by rw [zero_smul]),
+  λ s' b, finsupp.sum_indicator_const_index _ (λ i hi, by rw [zero_smul]),
   simp_rw [to_conj_equiv_symm_single, add_submonoid_class.coe_finset_sum, subtype.coe_mk, map_sum,
     Eval_apply, this, smul_sum],
 end
